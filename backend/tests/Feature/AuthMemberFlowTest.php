@@ -49,6 +49,44 @@ it('keeps self registrations pending until super admin approval', function (): v
         ->assertJsonPath('data.login_id', '220340501');
 });
 
+it('accepts eight character passwords without mixed character requirements', function (): void {
+    $this->postJson('/api/v1/registrations', [
+        'member_number' => '220340502',
+        'name' => 'Anggota Password',
+        'phone' => '081234567891',
+        'position' => 'Anggota',
+        'department' => 'Pokja II',
+        'password' => '11111111',
+        'password_confirmation' => '11111111',
+    ])->assertCreated();
+
+    $user = staff('member', [
+        'login_id' => '220340503',
+        'name' => 'Anggota Ganti Password',
+    ]);
+    $user->update(['password' => Hash::make('SPK1>!(ud?gSiv')]);
+
+    $this->actingAs($user)
+        ->putJson('/api/v1/auth/password', [
+            'current_password' => 'SPK1>!(ud?gSiv',
+            'password' => '11111111',
+            'password_confirmation' => '11111111',
+        ])->assertOk();
+});
+
+it('returns compact validation messages for duplicate member numbers', function (): void {
+    staff('member', ['login_id' => '220340504', 'name' => 'Nomor Ada']);
+
+    $this->postJson('/api/v1/registrations', [
+        'member_number' => '220340504',
+        'name' => 'Nomor Duplikat',
+        'phone' => '081234567892',
+        'password' => '11111111',
+        'password_confirmation' => '11111111',
+    ])->assertUnprocessable()
+        ->assertJsonPath('message', 'Nomor anggota sudah digunakan.');
+});
+
 it('enforces role access for super admin only resources', function (): void {
     $operator = staff('operator', ['login_id' => 'operator']);
 

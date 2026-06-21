@@ -53,6 +53,39 @@ it('uses a date exception before the weekly schedule', function (): void {
         ->and(AuditLog::query()->where('action', 'attendance_exception.created')->exists())->toBeTrue();
 });
 
+it('applies weekly schedule changes to today immediately when no date exception exists', function (): void {
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-06-22 08:05', config('app.timezone')));
+    $admin = dailyUser('super_admin', 'schedule-admin');
+    AttendanceWeeklySchedule::query()->create([
+        'weekday' => 1,
+        'is_working_day' => true,
+        'check_in_time' => '10:00',
+        'check_in_before_minutes' => 30,
+        'check_in_after_minutes' => 30,
+        'check_out_time' => '16:00',
+        'check_out_before_minutes' => 30,
+        'check_out_after_minutes' => 30,
+    ]);
+
+    $day = app(DailyAttendanceService::class)->forDate();
+    expect(app(DailyAttendanceService::class)->phaseAt($day))->toBeNull();
+
+    $this->actingAs($admin)->putJson('/api/v1/attendance-settings/weekly/1', [
+        'is_working_day' => true,
+        'check_in_time' => '08:00',
+        'check_in_before_minutes' => 30,
+        'check_in_after_minutes' => 30,
+        'check_out_time' => '16:00',
+        'check_out_before_minutes' => 30,
+        'check_out_after_minutes' => 30,
+    ])->assertOk();
+
+    $day = app(DailyAttendanceService::class)->forDate()->fresh();
+    expect(app(DailyAttendanceService::class)->phaseAt($day))->toBe('check_in')
+        ->and($day->check_in_target_at->timezone(config('app.timezone'))->format('H:i'))->toBe('08:00')
+        ->and($day->source)->toBe('weekly');
+});
+
 it('lets super admins correct and reset daily attendance with reasons in the log', function (): void {
     CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-06-22 09:00', config('app.timezone')));
     $admin = dailyUser('super_admin', 'manual-admin');

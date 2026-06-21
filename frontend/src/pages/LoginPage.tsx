@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { BrandMark } from '../components/BrandMark'
 import { Button } from '../components/ui'
 import { useAuth } from '../lib/auth'
-import { ApiError } from '../lib/api'
+import { apiErrorMessage } from '../lib/api'
 
 const schema = z.object({
   loginId: z.string().min(1, 'ID pengguna wajib diisi.'),
@@ -38,7 +38,7 @@ export function LoginPage() {
       navigate(requested || (authenticated.roles.includes('member') ? '/member/home' : '/admin/dashboard'), { replace: true })
       toast.success(`Selamat datang, ${authenticated.name}.`)
     } catch (error) {
-      toast.error(error instanceof ApiError ? error.message : 'Login gagal. Coba lagi.')
+      toast.error(apiErrorMessage(error, 'Login gagal. Coba lagi.'))
     } finally {
       setSubmitting(false)
     }

@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import { BrandMark } from '../components/BrandMark'
 import { Button } from '../components/ui'
-import { api, ApiError, jsonBody } from '../lib/api'
+import { api, apiErrorMessage, jsonBody } from '../lib/api'
 
 const schema = z.object({
   member_number: z.string().min(3, 'Nomor anggota wajib diisi.'),
@@ -16,7 +16,7 @@ const schema = z.object({
   phone: z.string().min(8, 'Nomor telepon tidak valid.'),
   position: z.string().optional(),
   department: z.string().optional(),
-  password: z.string().min(12, 'Password minimal 12 karakter.'),
+  password: z.string().min(8, 'Password minimal 8 karakter.'),
   password_confirmation: z.string(),
 }).refine((data) => data.password === data.password_confirmation, { path: ['password_confirmation'], message: 'Konfirmasi password tidak sama.' })
 
@@ -34,7 +34,7 @@ export function RegisterPage() {
       toast.success('Pendaftaran diterima. Tunggu persetujuan admin.')
       navigate('/login')
     } catch (error) {
-      toast.error(error instanceof ApiError ? error.message : 'Pendaftaran gagal.')
+      toast.error(apiErrorMessage(error, 'Pendaftaran gagal.'))
     } finally {
       setSubmitting(false)
     }

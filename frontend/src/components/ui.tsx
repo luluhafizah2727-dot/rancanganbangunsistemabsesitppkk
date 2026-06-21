@@ -1,5 +1,6 @@
 import { LoaderCircle, X } from 'lucide-react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { apiFieldErrors } from '../lib/api'
 
 export function LoadingScreen() {
   return (
@@ -93,5 +94,17 @@ export function ConfirmDialog({
         </div>
       </div>
     </Modal>
+  )
+}
+
+export function FormErrorSummary({ error, fallback }: { error: unknown; fallback?: string }) {
+  const errors = apiFieldErrors(error)
+  if (!errors.length && !fallback) return null
+
+  return (
+    <div className="form-error-summary" role="alert">
+      {(errors[0] ?? fallback) ? <strong>{errors[0] ?? fallback}</strong> : null}
+      {errors.length > 1 ? <small>{errors.length - 1} hal lain perlu diperbaiki.</small> : null}
+    </div>
   )
 }

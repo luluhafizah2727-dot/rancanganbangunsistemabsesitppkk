@@ -15,6 +15,7 @@ import {
 import { useState, type ReactNode } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { apiErrorMessage } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { formatDate } from '../lib/format'
 import { AccountMenu } from './AccountMenu'
@@ -23,7 +24,7 @@ import { BrandMark } from './BrandMark'
 const navItems = [
   { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/admin/accounts', label: 'Akun', icon: ShieldCheck, adminOnly: true },
-  { to: '/admin/members', label: 'Anggota', icon: Users, adminOnly: true },
+  { to: '/admin/members', label: 'Anggota', icon: Users },
   { to: '/admin/gawai', label: 'Gawai', icon: Monitor },
   { to: '/admin/requests', label: 'Permohonan', icon: FileCheck2 },
   { to: '/admin/attendance', label: 'Kehadiran', icon: ClipboardCheck },
@@ -42,8 +43,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     try {
       await logout()
       navigate('/login')
-    } catch {
-      toast.error('Tidak dapat keluar. Coba lagi.')
+    } catch (error) {
+      toast.error(apiErrorMessage(error, 'Tidak dapat keluar. Periksa koneksi lalu coba lagi.'))
     }
   }
 

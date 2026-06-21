@@ -81,7 +81,7 @@ class AuthController extends Controller
             'phone' => ['required', 'string', 'max:30'],
             'position' => ['nullable', 'string', 'max:100'],
             'department' => ['nullable', 'string', 'max:100'],
-            'password' => ['required', 'confirmed', Password::min(12)->letters()->mixedCase()->numbers()],
+            'password' => ['required', 'confirmed', Password::min(8)],
         ]);
 
         $user = DB::transaction(function () use ($data): User {
@@ -117,7 +117,7 @@ class AuthController extends Controller
     {
         $data = $request->validate([
             'current_password' => ['required', 'current_password'],
-            'password' => ['required', 'confirmed', Password::min(12)->letters()->mixedCase()->numbers(), 'different:current_password'],
+            'password' => ['required', 'confirmed', Password::min(8), 'different:current_password'],
         ]);
 
         $request->user()->update(['password' => Hash::make($data['password']), 'must_change_password' => false]);

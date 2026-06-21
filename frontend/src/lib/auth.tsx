@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createContext, useContext, type ReactNode } from 'react'
-import { api, ensureCsrf, jsonBody } from './api'
+import { api, ApiError, ensureCsrf, jsonBody } from './api'
 import type { User } from '../types'
 
 interface AuthContextValue {
@@ -35,7 +35,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = async () => {
-    await api('/api/v1/auth/logout', { method: 'POST' })
+    try {
+      await api('/api/v1/auth/logout', { method: 'POST' })
+    } catch (error) {
+      if (!(error instanceof ApiError) || ![401, 419].includes(error.status)) {
+        throw error
+      }
+    }
+
     queryClient.setQueryData(['auth', 'me'], null)
     queryClient.clear()
   }

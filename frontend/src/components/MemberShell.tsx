@@ -2,6 +2,7 @@ import { Clock3, FileCheck2, Home, ScanLine, UserRound } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { apiErrorMessage } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { AccountMenu } from './AccountMenu'
 import { BrandMark } from './BrandMark'
@@ -22,8 +23,8 @@ export function MemberShell({ children }: { children: ReactNode }) {
     try {
       await logout()
       navigate('/login')
-    } catch {
-      toast.error('Tidak dapat keluar. Coba lagi.')
+    } catch (error) {
+      toast.error(apiErrorMessage(error, 'Tidak dapat keluar. Periksa koneksi lalu coba lagi.'))
     }
   }
 

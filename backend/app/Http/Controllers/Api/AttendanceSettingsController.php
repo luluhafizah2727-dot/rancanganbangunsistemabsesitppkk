@@ -39,6 +39,7 @@ class AttendanceSettingsController extends Controller
         $data = $this->validateSchedule($request);
         $schedule->update([...$data, 'updated_by' => $request->user()->id]);
         $days->clearFutureSnapshots();
+        $days->syncTodayFromWeeklySchedule($weekday);
         $audit->log('attendance_schedule.updated', $schedule, [
             'before' => $before,
             'after' => Present::weeklySchedule($schedule->fresh()),

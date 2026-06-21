@@ -136,6 +136,8 @@ h1, h2, h3, p { margin-top: 0; }
 .form-grid .field--full { grid-column: 1 / -1; }
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 .form-note { margin: 12px 0 0; color: var(--gray-500); font-size: 13px; line-height: 1.55; }
+.form-error-summary { display: grid; gap: 3px; margin-top: 14px; padding: 10px 12px; border: 1px solid #f4b4b4; border-radius: 6px; color: #b42318; background: var(--red-100); font-size: 13px; line-height: 1.4; }
+.form-error-summary small { color: #9f1d14; font-weight: 700; }
 .empty-state { display: grid; place-items: center; gap: 5px; min-height: 180px; padding: 28px; color: var(--gray-500); text-align: center; }
 .empty-state strong { color: var(--gray-700); }
 .empty-state p { margin: 0; font-size: 13px; }

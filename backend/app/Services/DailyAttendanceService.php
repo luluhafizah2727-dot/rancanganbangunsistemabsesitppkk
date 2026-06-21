@@ -135,6 +135,31 @@ class DailyAttendanceService
             ->delete();
     }
 
+    public function syncTodayFromWeeklySchedule(int $weekday): ?AttendanceDay
+    {
+        $today = CarbonImmutable::now(config('app.timezone'))->startOfDay();
+        if ($today->dayOfWeekIso !== $weekday) {
+            return null;
+        }
+
+        if (AttendanceException::query()->whereDate('attendance_date', $today->toDateString())->exists()) {
+            return null;
+        }
+
+        $attributes = $this->attributesFor($today);
+        $day = AttendanceDay::query()->whereDate('attendance_date', $today->toDateString())->first();
+        if ($day) {
+            $day->forceFill($attributes)->save();
+        } else {
+            $day = AttendanceDay::query()->create($attributes);
+        }
+
+        $this->syncMembers($day);
+        $this->refreshStatuses($day);
+
+        return $day->fresh();
+    }
+
     private function syncMembers(AttendanceDay $day): void
     {
         if (! $day->is_working_day) {

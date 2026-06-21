@@ -260,7 +260,7 @@ VITE_REVERB_SCHEME=
 ```bash
 pnpm setup
 SUDO_PASSWORD='password-sudo' pnpm setup:database
-scripts/deploy-production.sh
+CONFIGURE_PHPMYADMIN_BASIC_AUTH=true scripts/deploy-production.sh
 ```
 
 ### 4. Apache dan service
@@ -287,28 +287,34 @@ sudo systemctl enable --now zerotier-mtu@NAMA_INTERFACE.service
 
 ## phpMyAdmin Remote
 
-phpMyAdmin tidak dipublikasikan melalui IP atau domain. Apache hanya mendengarkan pada `127.0.0.1:8081`.
+phpMyAdmin dapat dibuka melalui:
+
+- `https://absensi.kapul.my.id/phpmyadmin`
+- `http://20.20.20.21/phpmyadmin`
+
+Sebelum login database, browser akan meminta **Basic Auth** Apache. Username default adalah `pmaadmin`. Password Basic Auth dibuat oleh `scripts/deploy-production.sh` saat `CONFIGURE_PHPMYADMIN_BASIC_AUTH=true` dan disimpan di server pada `/root/tppkk-phpmyadmin-basic-auth-password`. File password ini tidak boleh dicatat di repo atau dibagikan terbuka.
 
 Konfigurasi server:
 
 ```bash
 sudo install -d -o www-data -g www-data -m 700 /var/lib/php/sessions-phpmyadmin /var/lib/phpmyadmin/tmp
 sudo cp deploy/php-fpm/phpmyadmin.conf /etc/php/8.3/fpm/pool.d/phpmyadmin.conf
-sudo cp deploy/apache/phpmyadmin-loopback.conf /etc/apache2/sites-available/phpmyadmin-loopback.conf
 sudo install -o root -g www-data -m 640 deploy/phpmyadmin/config.footer.inc.php /etc/phpmyadmin/config.footer.inc.php
 sudo a2disconf phpmyadmin 2>/dev/null || true
-sudo a2ensite phpmyadmin-loopback.conf
+CONFIGURE_PHPMYADMIN_BASIC_AUTH=true scripts/deploy-production.sh
 sudo systemctl restart php8.3-fpm
 sudo systemctl reload apache2
 ```
 
-Dari mesin lokal:
+Login phpMyAdmin memakai `DB_USERNAME` dan `DB_PASSWORD` dari `.env` remote. User aplikasi hanya memiliki hak pada database `tppkk_absensi`.
+
+Jika tetap ingin akses tunnel lokal, gunakan:
 
 ```bash
 ssh -L 8081:127.0.0.1:8081 robert@20.20.20.21
 ```
 
-Selama SSH aktif, buka `http://localhost:8081`. Login menggunakan `DB_USERNAME` dan `DB_PASSWORD` dari `.env` remote. User aplikasi hanya memiliki hak pada database `tppkk_absensi`.
+Selama SSH aktif, buka `http://localhost:8081` bila site loopback phpMyAdmin juga diaktifkan.
 
 ## Backup dan Restore MariaDB
 

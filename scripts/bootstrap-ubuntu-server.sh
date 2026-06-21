@@ -14,7 +14,7 @@ fi
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y ca-certificates curl git gnupg unzip zip software-properties-common cron apache2 mariadb-server mariadb-client redis-server
+apt-get install -y ca-certificates curl git gnupg unzip zip software-properties-common cron apache2 apache2-utils mariadb-server mariadb-client redis-server
 
 if ! apt-cache show php8.3-fpm >/dev/null 2>&1; then
   add-apt-repository -y ppa:ondrej/php

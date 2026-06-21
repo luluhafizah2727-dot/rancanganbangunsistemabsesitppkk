@@ -14,6 +14,7 @@ use App\Services\DailyAttendanceService;
 use App\Services\QrTokenService;
 use App\Support\ApiResponse;
 use App\Support\Present;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -167,11 +168,13 @@ class AttendanceDeviceController extends Controller
         $day = $tokens->dayForDisplay();
         $phase = $days->phaseAt($day);
         $nextDay = $day->is_working_day && $day->check_out_closes_at?->isFuture() ? $day : $days->nextWorkingDay(now()->addDay());
+        $qr = $tokens->currentOrRotate($device);
 
         return ApiResponse::success([
             'registered' => true,
             'device' => Present::device($device),
-            'qr' => $tokens->currentOrRotate($device),
+            'qr' => $qr,
+            'qr_unavailable_reason' => $qr ? null : $this->qrUnavailableReason($day),
             'attendance_day' => Present::day($day),
             'current_phase' => $phase,
             'next_working_day' => $nextDay ? Present::day($nextDay) : null,
@@ -220,5 +223,25 @@ class AttendanceDeviceController extends Controller
         return collect(preg_split('/\s+/', trim($name)) ?: [])->filter()->map(
             fn (string $part, int $index) => $index === 0 ? $part : mb_substr($part, 0, 1).str_repeat('*', max(2, mb_strlen($part) - 1)),
         )->implode(' ');
+    }
+
+    private function qrUnavailableReason(AttendanceDay $day): string
+    {
+        if (! $day->is_working_day) {
+            return 'Hari ini tidak ada jadwal absensi.';
+        }
+
+        $now = CarbonImmutable::now();
+        if ($day->check_in_opens_at && $now->lt($day->check_in_opens_at)) {
+            return 'QR check-in tampil mulai '.$day->check_in_opens_at->timezone(config('app.timezone'))->format('H.i').' WITA.';
+        }
+        if ($day->check_in_closes_at && $day->check_out_opens_at && $now->gt($day->check_in_closes_at) && $now->lt($day->check_out_opens_at)) {
+            return 'QR check-out tampil mulai '.$day->check_out_opens_at->timezone(config('app.timezone'))->format('H.i').' WITA.';
+        }
+        if ($day->check_out_closes_at && $now->gt($day->check_out_closes_at)) {
+            return 'Waktu absensi hari ini sudah selesai.';
+        }
+
+        return 'QR tampil sesuai waktu pemindaian.';
     }
 }

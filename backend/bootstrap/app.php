@@ -56,11 +56,14 @@ $app = Application::configure(basePath: dirname(__DIR__))
                 return null;
             }
 
+            $errors = $exception->errors();
+            $message = collect($errors)->flatten()->first() ?: 'Data yang diberikan tidak valid.';
+
             return ApiResponse::error(
-                'Data yang diberikan tidak valid.',
+                $message,
                 'validation_error',
                 422,
-                $exception->errors(),
+                $errors,
             );
         });
         $exceptions->render(function (AuthenticationException $exception, Request $request) {

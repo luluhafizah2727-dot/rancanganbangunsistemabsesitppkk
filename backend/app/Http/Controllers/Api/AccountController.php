@@ -50,7 +50,7 @@ class AccountController extends Controller
             'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:30'],
             'role' => ['required', Rule::in(['super_admin', 'operator'])],
-            'password' => ['nullable', 'confirmed', Password::min(12)->letters()->mixedCase()->numbers()],
+            'password' => ['nullable', 'confirmed', Password::min(8)],
         ]);
 
         $temporaryPassword = $data['password'] ?? Str::password(14);

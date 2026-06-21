@@ -25,10 +25,32 @@ export class ApiError extends Error {
   payload: ApiErrorPayload
 
   constructor(status: number, payload: ApiErrorPayload) {
-    super(payload.message || 'Permintaan gagal.')
+    super(apiErrorMessage({ payload }, payload.message || 'Permintaan gagal.'))
     this.status = status
     this.payload = payload
   }
+}
+
+export function apiErrorMessage(error: unknown, fallback = 'Permintaan gagal.') {
+  if (error instanceof ApiError) {
+    return firstPayloadError(error.payload) || error.payload.message || fallback
+  }
+
+  const payload = typeof error === 'object' && error && 'payload' in error
+    ? (error as { payload?: ApiErrorPayload }).payload
+    : null
+
+  return (payload ? firstPayloadError(payload) || payload.message : null) || fallback
+}
+
+export function apiFieldErrors(error: unknown): string[] {
+  if (!(error instanceof ApiError)) return []
+
+  return Object.values(error.payload.errors ?? {}).flat().filter(Boolean)
+}
+
+function firstPayloadError(payload: ApiErrorPayload) {
+  return Object.values(payload.errors ?? {}).flat().find(Boolean)
 }
 
 function csrfToken() {

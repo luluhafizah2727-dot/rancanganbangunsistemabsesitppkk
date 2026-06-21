@@ -169,6 +169,7 @@ export interface DeviceContext {
   registered: boolean
   device?: AttendanceDevice
   qr?: QrPayload | null
+  qr_unavailable_reason?: string | null
   attendance_day?: AttendanceDay
   current_phase?: 'check_in' | 'check_out' | null
   next_working_day?: AttendanceDay | null
