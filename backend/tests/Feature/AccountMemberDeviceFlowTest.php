@@ -39,6 +39,15 @@ it('manages staff accounts while keeping at least one active super admin', funct
     $operatorId = $response->json('data.account.id');
     expect($response->json('data.temporary_password'))->toBeString();
 
+    $this->actingAs($admin)->putJson("/api/v1/accounts/{$operatorId}", [
+        'login_id' => 'operator-renamed',
+        'name' => 'Operator Baru',
+        'role' => 'operator',
+    ])->assertOk()
+        ->assertJsonPath('data.login_id', 'operator-renamed');
+
+    expect(User::query()->where('login_id', 'operator-renamed')->exists())->toBeTrue();
+
     $this->actingAs($admin)->putJson("/api/v1/accounts/{$admin->public_id}", [
         'role' => 'operator',
     ])->assertStatus(409);
@@ -47,7 +56,7 @@ it('manages staff accounts while keeping at least one active super admin', funct
         ->assertOk()
         ->assertJsonStructure(['data' => ['temporary_password']]);
 
-    expect(AuditLog::query()->whereIn('action', ['account.created', 'account.password_reset'])->count())->toBe(2);
+    expect(AuditLog::query()->whereIn('action', ['account.created', 'account.updated', 'account.password_reset'])->count())->toBe(3);
 });
 
 it('requires approval for a member device before scanning when strict mode is active', function (): void {

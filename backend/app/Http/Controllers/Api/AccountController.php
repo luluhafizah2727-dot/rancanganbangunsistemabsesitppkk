@@ -87,6 +87,7 @@ class AccountController extends Controller
     public function update(Request $request, User $account, AuditLogger $audit): JsonResponse
     {
         $data = $request->validate([
+            'login_id' => ['sometimes', 'required', 'string', 'max:100', Rule::unique('users', 'login_id')->ignore($account->id)],
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'email')->ignore($account->id)],
             'phone' => ['nullable', 'string', 'max:30'],
@@ -94,6 +95,7 @@ class AccountController extends Controller
             'role' => ['sometimes', Rule::in(['super_admin', 'operator', 'member'])],
         ]);
 
+        abort_if($account->hasRole('member') && isset($data['login_id']) && $data['login_id'] !== $account->login_id, 409, 'ID pengguna anggota diubah dari menu Anggota.');
         abort_if($account->hasRole('member') && isset($data['role']) && $data['role'] !== 'member', 409, 'Role anggota tidak dapat diubah dari menu akun.');
         abort_if(! $account->hasRole('member') && isset($data['role']) && $data['role'] === 'member', 409, 'Gunakan menu Anggota untuk membuat akun anggota.');
 
@@ -103,7 +105,7 @@ class AccountController extends Controller
             $nextStatus = isset($data['status']) ? UserStatus::from($data['status']) : $account->status;
             $this->guardLastSuperAdmin($account, $nextRole, $nextStatus);
 
-            $account->update(collect($data)->only(['name', 'email', 'phone', 'status'])->all());
+            $account->update(collect($data)->only(['login_id', 'name', 'email', 'phone', 'status'])->all());
             if (isset($data['role'])) {
                 $account->syncRoles([$data['role']]);
             }
