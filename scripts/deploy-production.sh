@@ -16,6 +16,14 @@ for command_name in php composer pnpm; do
   }
 done
 
+run_sudo() {
+  if [[ -n "${SUDO_PASSWORD:-}" ]]; then
+    printf '%s\n' "$SUDO_PASSWORD" | sudo -S "$@"
+  else
+    sudo "$@"
+  fi
+}
+
 maintenance_enabled=false
 if php backend/artisan migrate:status >/dev/null 2>&1; then
   php backend/artisan down --retry=30 || true
@@ -54,23 +62,23 @@ if [[ "${CONFIGURE_PHPMYADMIN_BASIC_AUTH:-false}" == "true" ]]; then
   pma_htpasswd_file="${PHPMYADMIN_HTPASSWD_FILE:-/etc/apache2/tppkk-phpmyadmin.htpasswd}"
 
   if [[ ! -f "$pma_secret_file" ]]; then
-    sudo install -d -o root -g root -m 700 "$(dirname "$pma_secret_file")"
-    openssl rand -base64 24 | sudo tee "$pma_secret_file" >/dev/null
-    sudo chmod 600 "$pma_secret_file"
-    sudo chown root:root "$pma_secret_file"
+    run_sudo install -d -o root -g root -m 700 "$(dirname "$pma_secret_file")"
+    openssl rand -base64 24 | run_sudo tee "$pma_secret_file" >/dev/null
+    run_sudo chmod 600 "$pma_secret_file"
+    run_sudo chown root:root "$pma_secret_file"
   fi
 
-  pma_password="$(sudo cat "$pma_secret_file" | tr -d '\n')"
+  pma_password="$(run_sudo cat "$pma_secret_file" | tr -d '\n')"
   pma_tmp="$(mktemp)"
   printf '%s\n' "$pma_password" | htpasswd -iB -c "$pma_tmp" "$pma_user" >/dev/null
-  sudo install -o root -g www-data -m 640 "$pma_tmp" "$pma_htpasswd_file"
+  run_sudo install -o root -g www-data -m 640 "$pma_tmp" "$pma_htpasswd_file"
   rm -f "$pma_tmp"
   echo "Basic Auth phpMyAdmin siap. Username: $pma_user. Password tersimpan di $pma_secret_file."
 fi
 
 if [[ "${RESTART_SERVICES:-false}" == "true" ]]; then
-  sudo systemctl restart tppkk-queue tppkk-reverb
-  sudo systemctl reload apache2
+  run_sudo systemctl restart tppkk-queue tppkk-reverb
+  run_sudo systemctl reload apache2
 fi
 
 restore_application
