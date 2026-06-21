@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AuthenticateAttendanceDevice;
+use App\Http\Middleware\ConfigureCookieSecurity;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\RequestId;
 use App\Http\Middleware\SecurityHeaders;
@@ -18,7 +19,7 @@ use Spatie\Permission\Middleware\RoleMiddleware;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
-return Application::configure(basePath: dirname(__DIR__))
+$app = Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
         api: __DIR__.'/../routes/api.php',
@@ -27,8 +28,15 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $trustedProxies = array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('TRUSTED_PROXIES', '127.0.0.1,::1')),
+        )));
+
+        $middleware->trustProxies(at: $trustedProxies);
         $middleware->encryptCookies(except: ['attendance_device_token', 'kiosk_device_token', 'member_device_token']);
         $middleware->statefulApi();
+        $middleware->append(ConfigureCookieSecurity::class);
         $middleware->append(RequestId::class);
         $middleware->append(SecurityHeaders::class);
         $middleware->alias([
@@ -111,3 +119,7 @@ return Application::configure(basePath: dirname(__DIR__))
             );
         });
     })->create();
+
+$app->useEnvironmentPath(dirname(__DIR__, 2));
+
+return $app;

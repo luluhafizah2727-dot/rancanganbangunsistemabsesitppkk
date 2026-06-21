@@ -15,8 +15,8 @@ return new class extends Migration
             $table->string('type', 30)->index();
             $table->date('date_from');
             $table->date('date_to');
-            $table->timestampTz('proposed_check_in_at')->nullable();
-            $table->timestampTz('proposed_check_out_at')->nullable();
+            $table->dateTimeTz('proposed_check_in_at')->nullable();
+            $table->dateTimeTz('proposed_check_out_at')->nullable();
             $table->string('other_label', 100)->nullable();
             $table->text('reason');
             $table->string('attachment_path')->nullable();
@@ -26,10 +26,10 @@ return new class extends Migration
             $table->string('status', 20)->default('pending')->index();
             $table->foreignId('reviewed_by')->nullable()->constrained('users')->nullOnDelete();
             $table->text('review_note')->nullable();
-            $table->timestampTz('approved_check_in_at')->nullable();
-            $table->timestampTz('approved_check_out_at')->nullable();
-            $table->timestampTz('reviewed_at')->nullable();
-            $table->timestampTz('cancelled_at')->nullable();
+            $table->dateTimeTz('approved_check_in_at')->nullable();
+            $table->dateTimeTz('approved_check_out_at')->nullable();
+            $table->dateTimeTz('reviewed_at')->nullable();
+            $table->dateTimeTz('cancelled_at')->nullable();
             $table->timestamps();
             $table->index(['member_id', 'status', 'date_from', 'date_to']);
             $table->index(['status', 'created_at']);

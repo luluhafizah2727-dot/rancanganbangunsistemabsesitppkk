@@ -1,0 +1,2 @@
+* * * * * www-data cd /var/www/tppkk-absensi && /usr/bin/php backend/artisan schedule:run >> /dev/null 2>&1
+17 2 * * * root /var/www/tppkk-absensi/scripts/backup-database.sh >> /var/log/tppkk-backup.log 2>&1

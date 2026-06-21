@@ -2,10 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="$ROOT_DIR/backend/.env"
+ENV_FILE="$ROOT_DIR/.env"
 
 if [[ ! -f "$ENV_FILE" ]]; then
-  echo "backend/.env belum ada. Jalankan pnpm setup terlebih dahulu."
+  echo ".env root belum ada. Jalankan pnpm setup terlebih dahulu."
   exit 1
 fi
 
@@ -70,7 +70,7 @@ run_sudo() {
 }
 
 if [[ "$DB_DATABASE" == "" || "$DB_USERNAME" == "" ]]; then
-  echo "DB_DATABASE dan DB_USERNAME wajib diisi di backend/.env."
+  echo "DB_DATABASE dan DB_USERNAME wajib diisi di .env root."
   exit 1
 fi
 

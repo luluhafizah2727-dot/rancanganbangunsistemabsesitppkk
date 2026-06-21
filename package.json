@@ -5,7 +5,7 @@
   "scripts": {
     "setup": "bash scripts/setup.sh",
     "check:requirements": "bash scripts/check-requirements.sh",
-    "setup:database": "bash scripts/prepare-database.sh && php backend/artisan migrate --seed",
+    "setup:database": "bash scripts/prepare-database.sh && php backend/artisan migrate --seed --force",
     "install:all": "composer install --working-dir=backend && pnpm install",
     "dev:services": "bash scripts/dev-services.sh",
     "dev:backend": "php backend/artisan serve --host=127.0.0.1 --port=8000",

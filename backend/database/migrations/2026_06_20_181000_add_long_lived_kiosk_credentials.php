@@ -11,9 +11,9 @@ return new class extends Migration
     {
         Schema::table('kiosk_devices', function (Blueprint $table): void {
             $table->string('previous_credential_hash', 64)->nullable()->unique();
-            $table->timestampTz('previous_credential_expires_at')->nullable();
-            $table->timestampTz('credential_rotated_at')->nullable();
-            $table->timestampTz('credential_expires_at')->nullable()->index();
+            $table->dateTimeTz('previous_credential_expires_at')->nullable();
+            $table->dateTimeTz('credential_rotated_at')->nullable();
+            $table->dateTimeTz('credential_expires_at')->nullable()->index();
         });
 
         DB::table('kiosk_devices')->update([

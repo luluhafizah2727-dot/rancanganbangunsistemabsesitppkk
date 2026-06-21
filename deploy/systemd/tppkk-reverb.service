@@ -1,0 +1,19 @@
+[Unit]
+Description=TP PKK Laravel Reverb server
+After=network.target redis-server.service
+Requires=redis-server.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/tppkk-absensi
+ExecStart=/usr/bin/php backend/artisan reverb:start --host=127.0.0.1 --port=8080
+ExecReload=/bin/kill -USR2 $MAINPID
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=Set safe MTU for ZeroTier interface %i
+After=network-online.target zerotier-one.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/sbin/ip link set dev %i mtu 1400
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

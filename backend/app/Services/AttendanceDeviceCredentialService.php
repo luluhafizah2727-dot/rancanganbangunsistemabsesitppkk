@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\AttendanceDeviceStatus;
 use App\Models\AttendanceDevice;
+use App\Support\CookieSecurity;
 use Illuminate\Cookie\CookieJar;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -90,7 +91,7 @@ class AttendanceDeviceCredentialService
             60 * 24 * self::COOKIE_DAYS,
             '/',
             config('session.domain'),
-            (bool) config('session.secure'),
+            CookieSecurity::forRequest(request()),
             true,
             false,
             'strict',

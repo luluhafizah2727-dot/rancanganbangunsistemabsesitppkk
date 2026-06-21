@@ -99,8 +99,7 @@ if has_command mysqladmin; then
     || warn "MariaDB/MySQL lokal belum terdeteksi. Abaikan jika memakai PostgreSQL atau database remote."
 fi
 
-[[ -f backend/.env ]] && ok "backend/.env tersedia" || warn "backend/.env belum ada. Jalankan pnpm setup."
-[[ -f frontend/.env ]] && ok "frontend/.env tersedia" || warn "frontend/.env belum ada. Jalankan pnpm setup."
+[[ -f .env ]] && ok ".env root tersedia" || warn ".env root belum ada. Jalankan pnpm setup."
 [[ -f composer.lock || -f backend/composer.lock ]] && ok "Composer lockfile tersedia" || warn "composer.lock belum terlihat"
 [[ -f pnpm-lock.yaml ]] && ok "pnpm-lock.yaml tersedia" || warn "pnpm-lock.yaml belum terlihat"
 

@@ -55,7 +55,7 @@ class DatabaseSeeder extends Seeder
             'name' => 'Operator Absensi',
             'status' => UserStatus::Active,
             'registration_source' => 'seed',
-            'must_change_password' => false,
+            'must_change_password' => true,
             'approved_at' => now(),
             'password' => Hash::make('Operator123!'),
         ]);
@@ -76,7 +76,7 @@ class DatabaseSeeder extends Seeder
                 'name' => $row[1],
                 'status' => UserStatus::Active,
                 'registration_source' => 'seed',
-                'must_change_password' => false,
+                'must_change_password' => true,
                 'approved_at' => now(),
                 'password' => Hash::make('MemberDemo123!'),
             ]);

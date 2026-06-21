@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\MemberDevice;
+use App\Support\CookieSecurity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
 use Symfony\Component\HttpFoundation\Cookie as SymfonyCookie;
@@ -36,8 +37,8 @@ class MemberDeviceCredentialService
             $plain,
             self::LIFETIME_DAYS * 24 * 60,
             '/',
-            null,
-            app()->environment('production'),
+            config('session.domain'),
+            CookieSecurity::forRequest(request()),
             true,
             false,
             'Strict',

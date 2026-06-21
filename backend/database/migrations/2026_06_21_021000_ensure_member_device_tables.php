@@ -30,11 +30,11 @@ return new class extends Migration
                 $table->string('fingerprint_hash', 64)->nullable();
                 $table->text('user_agent')->nullable();
                 $table->string('ip_address', 45)->nullable();
-                $table->timestampTz('last_seen_at')->nullable();
+                $table->dateTimeTz('last_seen_at')->nullable();
                 $table->foreignId('reviewed_by')->nullable()->constrained('users')->nullOnDelete();
-                $table->timestampTz('reviewed_at')->nullable();
+                $table->dateTimeTz('reviewed_at')->nullable();
                 $table->text('review_note')->nullable();
-                $table->timestampTz('revoked_at')->nullable();
+                $table->dateTimeTz('revoked_at')->nullable();
                 $table->unsignedTinyInteger('approved_key')->nullable();
                 $table->timestamps();
                 $table->unique(['member_id', 'approved_key'], 'member_devices_one_approved_unique');

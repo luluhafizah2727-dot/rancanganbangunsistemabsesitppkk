@@ -25,8 +25,8 @@ return new class extends Migration
             $table->string('title');
             $table->text('description')->nullable();
             $table->string('location');
-            $table->timestampTz('starts_at');
-            $table->timestampTz('ends_at');
+            $table->dateTimeTz('starts_at');
+            $table->dateTimeTz('ends_at');
             $table->string('status', 20)->default('draft')->index();
             $table->boolean('all_active_members')->default(true);
             $table->foreignId('created_by')->constrained('users');
@@ -64,10 +64,10 @@ return new class extends Migration
             $table->json('screen')->nullable();
             $table->string('timezone')->nullable();
             $table->string('status', 20)->default('active')->index();
-            $table->timestampTz('activated_at');
+            $table->dateTimeTz('activated_at');
             $table->foreignId('activated_by')->constrained('users');
-            $table->timestampTz('last_seen_at')->nullable();
-            $table->timestampTz('revoked_at')->nullable();
+            $table->dateTimeTz('last_seen_at')->nullable();
+            $table->dateTimeTz('revoked_at')->nullable();
             $table->foreignId('revoked_by')->nullable()->constrained('users');
             $table->timestamps();
         });
@@ -76,8 +76,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('kiosk_id')->constrained()->cascadeOnDelete();
             $table->string('code_hash', 64)->unique();
-            $table->timestampTz('expires_at');
-            $table->timestampTz('used_at')->nullable();
+            $table->dateTimeTz('expires_at');
+            $table->dateTimeTz('used_at')->nullable();
             $table->foreignId('created_by')->constrained('users');
             $table->timestamps();
         });
@@ -88,10 +88,10 @@ return new class extends Migration
             $table->foreignId('event_id')->constrained()->cascadeOnDelete();
             $table->string('phase', 20)->index();
             $table->string('status', 20)->default('scheduled')->index();
-            $table->timestampTz('opens_at')->nullable();
-            $table->timestampTz('closes_at')->nullable();
-            $table->timestampTz('started_at')->nullable();
-            $table->timestampTz('ended_at')->nullable();
+            $table->dateTimeTz('opens_at')->nullable();
+            $table->dateTimeTz('closes_at')->nullable();
+            $table->dateTimeTz('started_at')->nullable();
+            $table->dateTimeTz('ended_at')->nullable();
             $table->foreignId('started_by')->nullable()->constrained('users');
             $table->foreignId('ended_by')->nullable()->constrained('users');
             $table->timestamps();
@@ -109,9 +109,9 @@ return new class extends Migration
             $table->ulid('public_id')->unique();
             $table->foreignId('member_id')->constrained()->cascadeOnDelete();
             $table->foreignId('event_id')->constrained()->cascadeOnDelete();
-            $table->timestampTz('check_in_at')->nullable();
+            $table->dateTimeTz('check_in_at')->nullable();
             $table->foreignId('check_in_device_id')->nullable()->constrained('kiosk_devices');
-            $table->timestampTz('check_out_at')->nullable();
+            $table->dateTimeTz('check_out_at')->nullable();
             $table->foreignId('check_out_device_id')->nullable()->constrained('kiosk_devices');
             $table->timestamps();
             $table->unique(['member_id', 'event_id']);
@@ -130,7 +130,7 @@ return new class extends Migration
             $table->string('reason', 60)->nullable();
             $table->string('ip_address', 45)->nullable();
             $table->text('user_agent')->nullable();
-            $table->timestampTz('scanned_at');
+            $table->dateTimeTz('scanned_at');
             $table->timestamps();
         });
 
@@ -145,7 +145,7 @@ return new class extends Migration
             $table->unsignedInteger('valid_rows')->default(0);
             $table->unsignedInteger('failed_rows')->default(0);
             $table->json('errors')->nullable();
-            $table->timestampTz('confirmed_at')->nullable();
+            $table->dateTimeTz('confirmed_at')->nullable();
             $table->timestamps();
         });
 
@@ -158,7 +158,7 @@ return new class extends Migration
             $table->json('metadata')->nullable();
             $table->string('ip_address', 45)->nullable();
             $table->text('user_agent')->nullable();
-            $table->timestampTz('created_at')->useCurrent();
+            $table->dateTimeTz('created_at')->useCurrent();
         });
     }
 
