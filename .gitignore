@@ -1,0 +1,78 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+auth.json
+
+# PHP / Laravel
+/vendor/
+**/vendor/
+.phpunit.result.cache
+.phpunit.cache/
+coverage/
+storage/*.key
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/testing/*
+storage/framework/views/*
+storage/logs/*
+bootstrap/cache/*.php
+!bootstrap/cache/.gitignore
+
+# JavaScript / React / Vite
+/node_modules/
+**/node_modules/
+dist/
+build/
+.vite/
+.turbo/
+.eslintcache
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Tests and reports
+coverage-html/
+test-results/
+playwright-report/
+blob-report/
+.playwright-mcp/
+.phpunit.cache/
+.phpunit.result.cache
+
+# Runtime files
+*.log
+*.pid
+*.seed
+*.sqlite
+*.sqlite-journal
+tmp/
+temp/
+.pnpm-store/
+.composer-cache/
+
+# IDEs and editors
+.idea/
+.fleet/
+.zed/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+*~
+
+# Operating systems
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Office temporary files
+~$*.docx
+~$*.xlsx
+~$*.pptx
+*.tmp

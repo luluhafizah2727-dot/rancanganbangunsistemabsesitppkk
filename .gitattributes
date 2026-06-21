@@ -1,0 +1,19 @@
+* text=auto eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+*.doc binary
+*.docx binary
+*.jpeg binary
+*.jpg binary
+*.png binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+
+/.github export-ignore
+/.gitattributes export-ignore
+/.gitignore export-ignore
+

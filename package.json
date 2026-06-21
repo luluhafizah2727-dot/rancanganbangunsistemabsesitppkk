@@ -1,0 +1,18 @@
+{
+  "name": "tppkk-absensi",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "setup": "bash scripts/setup.sh",
+    "check:requirements": "bash scripts/check-requirements.sh",
+    "setup:database": "bash scripts/prepare-database.sh && php backend/artisan migrate --seed",
+    "install:all": "composer install --working-dir=backend && pnpm install",
+    "dev:services": "bash scripts/dev-services.sh",
+    "dev:backend": "php backend/artisan serve --host=127.0.0.1 --port=8000",
+    "dev:frontend": "pnpm --dir frontend dev",
+    "test": "composer --working-dir=backend test && pnpm --dir frontend test",
+    "build": "pnpm --dir frontend build",
+    "lint": "composer --working-dir=backend lint && pnpm --dir frontend lint",
+    "format": "composer --working-dir=backend format && pnpm --dir frontend format"
+  }
+}
