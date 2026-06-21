@@ -59,5 +59,6 @@ php backend/artisan storage:link >/dev/null 2>&1 || true
 echo
 echo "Dependency dan key aplikasi sudah siap."
 echo "1. Isi koneksi database dan Redis di .env root."
-echo "2. Jalankan: pnpm setup:database"
-echo "3. Jalankan layanan sesuai README.md."
+echo "2. Development/demo: jalankan pnpm setup:database."
+echo "3. Production: jalankan pnpm database:prepare, lalu script deployment."
+echo "4. Jalankan layanan sesuai README.md."
