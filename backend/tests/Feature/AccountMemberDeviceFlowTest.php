@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\AttendanceDeviceStatus;
+use App\Enums\MemberDeviceStatus;
 use App\Enums\UserStatus;
 use App\Models\AppSetting;
 use App\Models\AttendanceDevice;
@@ -92,6 +93,40 @@ it('requires approval for a member device before scanning when strict mode is ac
         ->call('POST', '/api/v1/attendance/scans', ['token' => $token], cookies: ['member_device_token' => $cookie], server: ['HTTP_ACCEPT' => 'application/json'])
         ->assertOk()
         ->assertJsonPath('data.phase', 'check_in');
+});
+
+it('allows more than one approved member device after admin confirmation', function (): void {
+    $admin = accountFlowUser('super_admin', 'multi-device-admin');
+    [$memberUser, $member] = accountFlowMember('220360004');
+
+    MemberDevice::query()->create([
+        'member_id' => $member->id,
+        'label' => 'Ponsel utama',
+        'status' => MemberDeviceStatus::Approved,
+        'approved_key' => 1,
+        'credential_hash' => hash('sha256', 'primary-device'),
+        'reviewed_by' => $admin->id,
+        'reviewed_at' => now(),
+    ]);
+
+    $request = $this->actingAs($memberUser)->postJson('/api/v1/member-devices', [
+        'label' => 'Tablet cadangan',
+        'fingerprint' => 'browser-b',
+    ])->assertCreated()
+        ->assertJsonPath('data.status', 'pending');
+
+    $deviceId = $request->json('data.id');
+
+    $this->actingAs($admin)->postJson("/api/v1/member-devices/{$deviceId}/approve", [
+        'review_note' => 'Perangkat kedua disetujui.',
+    ])->assertOk()
+        ->assertJsonPath('data.status', 'approved');
+
+    $this->actingAs($admin)->getJson('/api/v1/member-devices?search=220360004')
+        ->assertOk()
+        ->assertJsonPath('data.0.counts.approved', 2);
+
+    expect(MemberDevice::query()->where('member_id', $member->id)->where('status', MemberDeviceStatus::Approved)->count())->toBe(2);
 });
 
 it('can switch member device binding to audit mode and still records new devices', function (): void {

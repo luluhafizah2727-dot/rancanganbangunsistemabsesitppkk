@@ -217,6 +217,13 @@ export interface MemberDevice {
   review_note: string | null
   revoked_at: string | null
   created_at: string
+  counts?: {
+    approved: number
+    pending: number
+    rejected: number
+    revoked: number
+    total: number
+  }
 }
 
 export interface MemberDeviceContext {

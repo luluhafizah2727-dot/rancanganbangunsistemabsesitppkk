@@ -10,6 +10,7 @@ use App\Support\Present;
 use App\Support\Search;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class MemberDeviceController extends Controller
 {
@@ -31,9 +32,29 @@ class MemberDeviceController extends Controller
         }
 
         $devices = $query->paginate(min($request->integer('per_page', 50), 100));
+        $items = collect($devices->items());
+        $counts = DB::table('member_devices')
+            ->whereIn('member_id', $items->pluck('member_id')->unique()->values())
+            ->selectRaw('member_id, status, count(*) as aggregate')
+            ->groupBy('member_id', 'status')
+            ->get()
+            ->groupBy('member_id');
 
         return ApiResponse::success(
-            collect($devices->items())->map(fn (MemberDevice $device) => Present::memberDevice($device))->values(),
+            $items->map(function (MemberDevice $device) use ($counts): array {
+                $memberCounts = $counts->get($device->member_id, collect())->pluck('aggregate', 'status');
+
+                return [
+                    ...Present::memberDevice($device),
+                    'counts' => [
+                        'approved' => (int) ($memberCounts['approved'] ?? 0),
+                        'pending' => (int) ($memberCounts['pending'] ?? 0),
+                        'rejected' => (int) ($memberCounts['rejected'] ?? 0),
+                        'revoked' => (int) ($memberCounts['revoked'] ?? 0),
+                        'total' => (int) $memberCounts->sum(),
+                    ],
+                ];
+            })->values(),
             ['current_page' => $devices->currentPage(), 'last_page' => $devices->lastPage(), 'total' => $devices->total()],
         );
     }

@@ -260,7 +260,7 @@ VITE_REVERB_SCHEME=
 ```bash
 pnpm setup
 SUDO_PASSWORD='password-sudo' pnpm setup:database
-CONFIGURE_PHPMYADMIN_BASIC_AUTH=true scripts/deploy-production.sh
+scripts/deploy-production.sh
 ```
 
 ### 4. Apache dan service
@@ -292,7 +292,7 @@ phpMyAdmin dapat dibuka melalui:
 - `https://absensi.kapul.my.id/phpmyadmin`
 - `http://20.20.20.21/phpmyadmin`
 
-Sebelum login database, browser akan meminta **Basic Auth** Apache. Username default adalah `pmaadmin`. Password Basic Auth dibuat oleh `scripts/deploy-production.sh` saat `CONFIGURE_PHPMYADMIN_BASIC_AUTH=true` dan disimpan di server pada `/root/tppkk-phpmyadmin-basic-auth-password`. File password ini tidak boleh dicatat di repo atau dibagikan terbuka.
+Halaman akan langsung menampilkan form login phpMyAdmin. Masuk memakai username dan password database dari `.env` remote.
 
 Konfigurasi server:
 
@@ -301,7 +301,7 @@ sudo install -d -o www-data -g www-data -m 700 /var/lib/php/sessions-phpmyadmin 
 sudo cp deploy/php-fpm/phpmyadmin.conf /etc/php/8.3/fpm/pool.d/phpmyadmin.conf
 sudo install -o root -g www-data -m 640 deploy/phpmyadmin/config.footer.inc.php /etc/phpmyadmin/config.footer.inc.php
 sudo a2disconf phpmyadmin 2>/dev/null || true
-CONFIGURE_PHPMYADMIN_BASIC_AUTH=true scripts/deploy-production.sh
+scripts/deploy-production.sh
 sudo systemctl restart php8.3-fpm
 sudo systemctl reload apache2
 ```

@@ -45,13 +45,6 @@ class MemberDeviceBindingService
     public function requestDevice(Request $request, Member $member, array $data): array
     {
         $current = $this->currentForMember($request, $member);
-        $active = MemberDevice::query()
-            ->where('member_id', $member->id)
-            ->where('status', MemberDeviceStatus::Approved)
-            ->first();
-
-        abort_if($active && (! $current || ! $current->is($active)), 409, 'Anggota sudah memiliki perangkat aktif. Cabut perangkat lama sebelum menyetujui perangkat baru.');
-
         if ($current && $current->status !== MemberDeviceStatus::Revoked) {
             $current->forceFill([
                 'label' => $data['label'] ?? $current->label,
@@ -134,11 +127,6 @@ class MemberDeviceBindingService
         return DB::transaction(function () use ($device, $reviewerId, $note): MemberDevice {
             $device = MemberDevice::query()->lockForUpdate()->findOrFail($device->id);
             abort_if($device->status !== MemberDeviceStatus::Pending, 409, 'Permohonan perangkat tidak sedang menunggu persetujuan.');
-            abort_if(MemberDevice::query()
-                ->where('member_id', $device->member_id)
-                ->where('status', MemberDeviceStatus::Approved)
-                ->whereKeyNot($device->id)
-                ->exists(), 409, 'Anggota sudah memiliki perangkat aktif.');
 
             $before = Present::memberDevice($device);
             $device->forceFill([
