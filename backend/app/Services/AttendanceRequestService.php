@@ -12,6 +12,7 @@ use App\Models\AttendanceDay;
 use App\Models\AttendanceRequest;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class AttendanceRequestService
@@ -121,8 +122,21 @@ class AttendanceRequestService
     private function applyAbsenceDay(AttendanceRequest $request, AttendanceDay $day): void
     {
         $attendance = $this->days->ensureAttendance($request->member_id, $day, true);
-        if ($attendance->status === AttendanceStatus::Present || ($attendance->attendance_request_id && $attendance->attendance_request_id !== $request->id)) {
+        if ($attendance->attendance_request_id && $attendance->attendance_request_id !== $request->id) {
             throw new ConflictHttpException('Terdapat kehadiran atau permohonan lain pada '.$day->attendance_date->format('d/m/Y').'.');
+        }
+
+        if ($attendance->attendance_request_id === $request->id
+            && $request->type->supportsPartialAbsence()
+            && $attendance->check_in_at
+            && $attendance->check_out_at) {
+            return;
+        }
+
+        if ($attendance->status === AttendanceStatus::Present) {
+            $this->applyPartialAbsenceDay($request, $day, $attendance);
+
+            return;
         }
 
         $attendance->forceFill([
@@ -139,6 +153,54 @@ class AttendanceRequestService
                 ? trim(($request->other_label ?: 'Lainnya').': '.$request->reason)
                 : $request->reason,
             'adjustment_reason' => 'Permohonan anggota disetujui',
+            'updated_by' => $request->reviewed_by,
+        ])->save();
+    }
+
+    private function applyPartialAbsenceDay(AttendanceRequest $request, AttendanceDay $day, Attendance $attendance): void
+    {
+        if (! $request->type->supportsPartialAbsence()) {
+            throw new ConflictHttpException('Terdapat kehadiran pada '.$day->attendance_date->format('d/m/Y').'.');
+        }
+
+        if (! $attendance->check_in_at) {
+            throw new ConflictHttpException('Check-in belum tercatat untuk menerapkan izin/sakit/dinas sebagian hari.');
+        }
+
+        if ($attendance->check_out_at) {
+            throw new ConflictHttpException('Check-out pada tanggal ini sudah tercatat.');
+        }
+
+        $partialStart = $request->approved_check_out_at;
+        if (! $partialStart) {
+            throw ValidationException::withMessages([
+                'approved_check_out_at' => 'Waktu mulai izin/sakit/dinas wajib diisi karena anggota sudah check-in.',
+            ]);
+        }
+
+        $partialStart = CarbonImmutable::instance($partialStart)->setTimezone(config('app.timezone'));
+        $attendanceDate = $day->attendance_date->format('Y-m-d');
+        if ($partialStart->toDateString() !== $attendanceDate) {
+            throw ValidationException::withMessages([
+                'approved_check_out_at' => 'Waktu mulai izin/sakit/dinas harus berada pada tanggal absensi.',
+            ]);
+        }
+
+        if ($partialStart->lt(CarbonImmutable::instance($attendance->check_in_at)->setTimezone(config('app.timezone')))) {
+            throw ValidationException::withMessages([
+                'approved_check_out_at' => 'Waktu mulai izin/sakit/dinas tidak boleh sebelum check-in.',
+            ]);
+        }
+
+        $attendance->forceFill([
+            'attendance_request_id' => $request->id,
+            'status' => $request->type->attendanceStatus(),
+            'check_out_at' => $partialStart,
+            'check_out_status' => $partialStart->lt($day->check_out_target_at) ? CheckOutStatus::Early : CheckOutStatus::OnTime,
+            'check_out_device_id' => null,
+            'source' => 'mixed',
+            'note' => $request->reason,
+            'adjustment_reason' => 'Permohonan anggota disetujui setelah check-in',
             'updated_by' => $request->reviewed_by,
         ])->save();
     }

@@ -52,6 +52,11 @@ class AttendanceRecorder
             throw ValidationException::withMessages(['token' => 'Gawai sudah tidak aktif.']);
         }
 
+        if (! $this->days->deviceAllowedForDay($device, $day)) {
+            $this->reject($member, $tokenHash, $request, 'device_not_allowed_for_day', $metadata);
+            throw ValidationException::withMessages(['token' => 'Gawai ini tidak diizinkan untuk jadwal khusus hari ini.']);
+        }
+
         $rejectedCheckout = false;
         $rejectedApprovedRequest = false;
 

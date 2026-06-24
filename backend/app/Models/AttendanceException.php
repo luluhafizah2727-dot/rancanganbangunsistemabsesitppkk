@@ -6,6 +6,7 @@ use App\Models\Concerns\HasPublicId;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class AttendanceException extends Model
 {
@@ -32,5 +33,10 @@ class AttendanceException extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function devices(): BelongsToMany
+    {
+        return $this->belongsToMany(AttendanceDevice::class, 'attendance_exception_devices')->withTimestamps();
     }
 }

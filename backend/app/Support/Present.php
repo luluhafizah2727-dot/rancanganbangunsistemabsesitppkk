@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Enums\AttendanceStatus;
 use App\Models\Attendance;
 use App\Models\AttendanceDay;
 use App\Models\AttendanceDevice;
@@ -88,6 +89,8 @@ class Present
 
     public static function exception(AttendanceException $exception): array
     {
+        $exception->loadMissing('devices');
+
         return [
             'id' => $exception->public_id,
             'attendance_date' => $exception->attendance_date->format('Y-m-d'),
@@ -99,6 +102,12 @@ class Present
             'check_out_before_minutes' => $exception->check_out_before_minutes,
             'check_out_after_minutes' => $exception->check_out_after_minutes,
             'note' => $exception->note,
+            'device_ids' => $exception->devices->pluck('public_id')->values()->all(),
+            'devices' => $exception->devices
+                ->sortBy('name')
+                ->map(fn (AttendanceDevice $device) => self::device($device))
+                ->values()
+                ->all(),
         ];
     }
 
@@ -140,7 +149,8 @@ class Present
 
     public static function attendance(Attendance $attendance): array
     {
-        $attendance->loadMissing('member.user', 'day', 'checkInDevice', 'checkOutDevice');
+        $attendance->loadMissing('member.user', 'day', 'checkInDevice', 'checkOutDevice', 'request.reviewer');
+        $presenceSummary = self::presenceSummary($attendance);
 
         return [
             'id' => $attendance->public_id,
@@ -153,8 +163,11 @@ class Present
             'check_out_status' => $attendance->check_out_status?->value,
             'source' => $attendance->source,
             'note' => $attendance->note,
+            'adjustment_reason' => $attendance->adjustment_reason,
             'check_in_device' => $attendance->checkInDevice?->name,
             'check_out_device' => $attendance->checkOutDevice?->name,
+            'presence_summary' => $presenceSummary,
+            'attendance_request' => $attendance->request ? self::attendanceRequestSummary($attendance->request) : null,
         ];
     }
 
@@ -186,6 +199,7 @@ class Present
             'reviewed_at' => $request->reviewed_at?->toIso8601String(),
             'cancelled_at' => $request->cancelled_at?->toIso8601String(),
             'created_at' => $request->created_at?->toIso8601String(),
+            'attendance_context' => self::attendanceRequestContext($request),
         ];
     }
 
@@ -217,5 +231,99 @@ class Present
         return $user->avatar_path
             ? Storage::disk('public')->url($user->avatar_path)
             : null;
+    }
+
+    private static function attendanceRequestContext(AttendanceRequest $request): ?array
+    {
+        if (! $request->date_from->isSameDay($request->date_to)) {
+            return null;
+        }
+
+        $day = AttendanceDay::query()->whereDate('attendance_date', $request->date_from->format('Y-m-d'))->first();
+        if (! $day) {
+            return null;
+        }
+
+        $attendance = Attendance::query()
+            ->with('day')
+            ->where('member_id', $request->member_id)
+            ->where('attendance_day_id', $day->id)
+            ->first();
+
+        if (! $attendance) {
+            return null;
+        }
+
+        return [
+            'id' => $attendance->public_id,
+            'status' => $attendance->status->value,
+            'check_in_at' => $attendance->check_in_at?->toIso8601String(),
+            'check_out_at' => $attendance->check_out_at?->toIso8601String(),
+            'presence_summary' => self::presenceSummary($attendance),
+        ];
+    }
+
+    private static function attendanceRequestSummary(AttendanceRequest $request): array
+    {
+        $request->loadMissing('reviewer');
+
+        return [
+            'id' => $request->public_id,
+            'type' => $request->type->value,
+            'status' => $request->status->value,
+            'reason' => $request->reason,
+            'review_note' => $request->review_note,
+            'approved_check_in_at' => $request->approved_check_in_at?->toIso8601String(),
+            'approved_check_out_at' => $request->approved_check_out_at?->toIso8601String(),
+            'reviewer' => $request->reviewer ? [
+                'id' => $request->reviewer->public_id,
+                'name' => $request->reviewer->name,
+            ] : null,
+            'reviewed_at' => $request->reviewed_at?->toIso8601String(),
+        ];
+    }
+
+    private static function presenceSummary(Attendance $attendance): array
+    {
+        $partial = in_array($attendance->status, [AttendanceStatus::Permission, AttendanceStatus::Sick, AttendanceStatus::OfficialDuty], true)
+            && $attendance->check_in_at
+            && $attendance->check_out_at;
+        $minutes = $partial
+            ? max(0, (int) $attendance->check_in_at->diffInMinutes($attendance->check_out_at, false))
+            : null;
+        $startedAtLabel = $partial ? $attendance->check_in_at->copy()->timezone(config('app.timezone'))->format('H.i') : null;
+        $endedAtLabel = $partial ? $attendance->check_out_at->copy()->timezone(config('app.timezone'))->format('H.i') : null;
+
+        return [
+            'is_partial_absence' => $partial,
+            'label' => $partial
+                ? self::statusLabel($attendance->status).' · sempat hadir '.$startedAtLabel.'–'.$endedAtLabel.' ('.self::durationLabel($minutes).')'
+                : null,
+            'duration_minutes' => $minutes,
+            'duration_label' => $minutes !== null ? self::durationLabel($minutes) : null,
+            'started_at' => $partial ? $attendance->check_in_at->toIso8601String() : null,
+            'ended_at' => $partial ? $attendance->check_out_at->toIso8601String() : null,
+        ];
+    }
+
+    private static function statusLabel(AttendanceStatus $status): string
+    {
+        return match ($status) {
+            AttendanceStatus::Permission => 'Izin',
+            AttendanceStatus::Sick => 'Sakit',
+            AttendanceStatus::OfficialDuty => 'Dinas',
+            AttendanceStatus::Leave => 'Cuti',
+            AttendanceStatus::Absent => 'Alpa',
+            AttendanceStatus::Present => 'Hadir',
+            AttendanceStatus::Pending => 'Belum hadir',
+        };
+    }
+
+    private static function durationLabel(int $minutes): string
+    {
+        $hours = intdiv($minutes, 60);
+        $remaining = $minutes % 60;
+
+        return $hours > 0 ? $hours.'j'.str_pad((string) $remaining, 2, '0', STR_PAD_LEFT) : $remaining.'m';
     }
 }

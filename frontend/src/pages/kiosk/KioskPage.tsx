@@ -10,7 +10,7 @@ import { formatDate } from '../../lib/format'
 import type { AttendanceSummary, DeviceContext } from '../../types'
 
 interface ActivationValues { activation_code: string }
-const emptySummary: AttendanceSummary = { expected: 0, present: 0, permission: 0, leave: 0, sick: 0, official_duty: 0, absent: 0, pending: 0, checked_out: 0 }
+const emptySummary: AttendanceSummary = { expected: 0, present: 0, permission: 0, leave: 0, sick: 0, official_duty: 0, absent: 0, pending: 0, partial_absence: 0, checked_out: 0 }
 
 export function KioskPage() {
   const queryClient = useQueryClient()

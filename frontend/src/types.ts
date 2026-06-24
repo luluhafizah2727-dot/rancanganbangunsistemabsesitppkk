@@ -82,6 +82,8 @@ export interface WeeklySchedule {
 export interface AttendanceException extends Omit<WeeklySchedule, 'weekday'> {
   attendance_date: string
   note: string
+  device_ids: string[]
+  devices: AttendanceDevice[]
 }
 
 export interface AttendanceSettings {
@@ -115,8 +117,11 @@ export interface Attendance {
   check_out_status: 'on_time' | 'early' | null
   source: 'system' | 'qr' | 'manual' | 'mixed' | 'legacy' | 'seed' | 'approved_request'
   note: string | null
+  adjustment_reason: string | null
   check_in_device: string | null
   check_out_device: string | null
+  presence_summary: PresenceSummary
+  attendance_request: AttendanceRequestSummary | null
 }
 
 export interface AttendanceSummary {
@@ -128,7 +133,29 @@ export interface AttendanceSummary {
   official_duty: number
   absent: number
   pending: number
+  partial_absence: number
   checked_out: number
+}
+
+export interface PresenceSummary {
+  is_partial_absence: boolean
+  label: string | null
+  duration_minutes: number | null
+  duration_label: string | null
+  started_at: string | null
+  ended_at: string | null
+}
+
+export interface AttendanceRequestSummary {
+  id: string
+  type: AttendanceRequestType
+  status: AttendanceRequestStatus
+  reason: string
+  review_note: string | null
+  approved_check_in_at: string | null
+  approved_check_out_at: string | null
+  reviewer: { id: string; name: string } | null
+  reviewed_at: string | null
 }
 
 export interface DashboardData {
@@ -199,6 +226,15 @@ export interface AttendanceRequest {
   reviewed_at: string | null
   cancelled_at: string | null
   created_at: string
+  attendance_context: AttendanceContext | null
+}
+
+export interface AttendanceContext {
+  id: string
+  status: AttendanceStatus
+  check_in_at: string | null
+  check_out_at: string | null
+  presence_summary: PresenceSummary
 }
 
 export type MemberDeviceStatus = 'pending' | 'approved' | 'rejected' | 'revoked'

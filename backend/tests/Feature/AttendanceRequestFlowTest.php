@@ -1,14 +1,21 @@
 <?php
 
 use App\Enums\AttendanceStatus;
+use App\Enums\AttendanceDeviceStatus;
+use App\Enums\AttendancePhase;
 use App\Enums\UserStatus;
+use App\Models\AppSetting;
 use App\Models\Attendance;
+use App\Models\AttendanceDevice;
 use App\Models\AttendanceRequest;
+use App\Models\AttendanceScan;
 use App\Models\AttendanceWeeklySchedule;
 use App\Models\AuditLog;
 use App\Models\Member;
 use App\Models\User;
 use App\Services\DailyAttendanceService;
+use App\Services\MemberDeviceBindingService;
+use App\Services\QrTokenService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
@@ -20,6 +27,7 @@ beforeEach(function (): void {
     Role::findOrCreate('super_admin');
     Role::findOrCreate('operator');
     Role::findOrCreate('member');
+    AppSetting::setValue(MemberDeviceBindingService::SETTING_KEY, MemberDeviceBindingService::MODE_AUDIT);
     requestSchedule(1);
     requestSchedule(2);
 });
@@ -103,6 +111,162 @@ it('applies approved future leave when the attendance day is materialized', func
     expect(Attendance::query()->where('member_id', $member->id)->where('attendance_day_id', $day->id)->firstOrFail()->status)->toBe(AttendanceStatus::OfficialDuty);
 });
 
+it('approves partial-day absence after QR check-in', function (string $type, AttendanceStatus $expectedStatus): void {
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-06-22 08:05', config('app.timezone')));
+    [$memberUser, $member] = requestMember('22035001'.match ($type) {
+        'permission' => '1',
+        'sick' => '2',
+        default => '3',
+    });
+    $admin = requestUser('super_admin', 'partial-admin-'.$type);
+    $device = requestAttendanceDevice($admin, 'partial-'.$type);
+    $checkInToken = app(QrTokenService::class)->rotate($device, true)['token'];
+
+    $this->actingAs($memberUser)->postJson('/api/v1/attendance/scans', ['token' => $checkInToken])
+        ->assertOk()
+        ->assertJsonPath('data.phase', 'check_in');
+
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-06-22 09:10', config('app.timezone')));
+    $publicId = $this->actingAs($memberUser)->postJson('/api/v1/attendance-requests', [
+        'type' => $type,
+        'date_from' => '2026-06-22',
+        'date_to' => '2026-06-22',
+        'proposed_check_out_at' => '2026-06-22T09:10:00+08:00',
+        'reason' => 'Perlu meninggalkan kegiatan setelah sempat hadir.',
+    ])->assertCreated()->json('data.id');
+
+    $this->actingAs($admin)->postJson("/api/v1/admin/attendance-requests/{$publicId}/approve", [
+        'review_note' => 'Disetujui sebagai sebagian hari.',
+    ])->assertOk();
+
+    $attendance = Attendance::query()->where('member_id', $member->id)->firstOrFail();
+    expect($attendance->status)->toBe($expectedStatus)
+        ->and($attendance->check_in_at?->format('H:i'))->toBe('08:05')
+        ->and($attendance->check_out_at?->format('H:i'))->toBe('09:10')
+        ->and($attendance->check_out_status?->value)->toBe('early')
+        ->and($attendance->source)->toBe('mixed')
+        ->and($attendance->attendance_request_id)->not->toBeNull();
+
+    $this->actingAs($admin)->getJson('/api/v1/attendances?date=2026-06-22')
+        ->assertOk()
+        ->assertJsonPath('data.attendances.0.presence_summary.is_partial_absence', true)
+        ->assertJsonPath('data.attendances.0.attendance_request.reviewer.name', 'Super Admin');
+})->with([
+    'izin' => ['permission', AttendanceStatus::Permission],
+    'sakit' => ['sick', AttendanceStatus::Sick],
+    'dinas' => ['official_duty', AttendanceStatus::OfficialDuty],
+]);
+
+it('validates partial-day absence start time while approving a present attendance', function (): void {
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-06-22 08:05', config('app.timezone')));
+    [$memberUser] = requestMember('220350014');
+    $admin = requestUser('super_admin', 'partial-validation-admin');
+    $device = requestAttendanceDevice($admin, 'partial-validation');
+    $this->actingAs($memberUser)->postJson('/api/v1/attendance/scans', [
+        'token' => app(QrTokenService::class)->rotate($device, true)['token'],
+    ])->assertOk();
+
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-06-22 09:10', config('app.timezone')));
+    $publicId = $this->actingAs($memberUser)->postJson('/api/v1/attendance-requests', [
+        'type' => 'sick',
+        'date_from' => '2026-06-22',
+        'date_to' => '2026-06-22',
+        'reason' => 'Kondisi kesehatan memburuk setelah hadir.',
+    ])->assertCreated()->json('data.id');
+
+    $this->actingAs($admin)->postJson("/api/v1/admin/attendance-requests/{$publicId}/approve")
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('approved_check_out_at');
+
+    $this->actingAs($admin)->postJson("/api/v1/admin/attendance-requests/{$publicId}/approve", [
+        'approved_check_out_at' => '2026-06-22T07:59:00+08:00',
+    ])->assertStatus(422)->assertJsonValidationErrors('approved_check_out_at');
+
+    $this->actingAs($admin)->postJson("/api/v1/admin/attendance-requests/{$publicId}/approve", [
+        'approved_check_out_at' => '2026-06-23T09:10:00+08:00',
+    ])->assertStatus(422)->assertJsonValidationErrors('approved_check_out_at');
+});
+
+it('rejects partial-day absence approval after complete checkout', function (): void {
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-06-22 08:05', config('app.timezone')));
+    [$memberUser] = requestMember('220350015');
+    $admin = requestUser('super_admin', 'completed-day-admin');
+    $device = requestAttendanceDevice($admin, 'completed-day');
+    $this->actingAs($memberUser)->postJson('/api/v1/attendance/scans', [
+        'token' => app(QrTokenService::class)->rotate($device, true)['token'],
+    ])->assertOk();
+
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-06-22 16:05', config('app.timezone')));
+    $this->actingAs($memberUser)->postJson('/api/v1/attendance/scans', [
+        'token' => app(QrTokenService::class)->rotate($device, true)['token'],
+    ])->assertOk()->assertJsonPath('data.phase', 'check_out');
+
+    $publicId = $this->actingAs($memberUser)->postJson('/api/v1/attendance-requests', [
+        'type' => 'permission',
+        'date_from' => '2026-06-22',
+        'date_to' => '2026-06-22',
+        'proposed_check_out_at' => '2026-06-22T17:00:00+08:00',
+        'reason' => 'Mengajukan izin setelah absensi lengkap.',
+    ])->assertCreated()->json('data.id');
+
+    $this->actingAs($admin)->postJson("/api/v1/admin/attendance-requests/{$publicId}/approve")
+        ->assertStatus(409);
+});
+
+it('reports partial-day absence separately without counting it as present', function (): void {
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-06-22 08:05', config('app.timezone')));
+    [$memberUser] = requestMember('220350016');
+    $admin = requestUser('super_admin', 'partial-report-admin');
+    $device = requestAttendanceDevice($admin, 'partial-report');
+    $this->actingAs($memberUser)->postJson('/api/v1/attendance/scans', [
+        'token' => app(QrTokenService::class)->rotate($device, true)['token'],
+    ])->assertOk();
+
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-06-22 10:15', config('app.timezone')));
+    $publicId = $this->actingAs($memberUser)->postJson('/api/v1/attendance-requests', [
+        'type' => 'official_duty',
+        'date_from' => '2026-06-22',
+        'date_to' => '2026-06-22',
+        'proposed_check_out_at' => '2026-06-22T10:15:00+08:00',
+        'reason' => 'Mengikuti tugas dinas setelah hadir di lokasi.',
+    ])->assertCreated()->json('data.id');
+    $this->actingAs($admin)->postJson("/api/v1/admin/attendance-requests/{$publicId}/approve")->assertOk();
+
+    $this->actingAs($admin)->getJson('/api/v1/reports/attendance?date_from=2026-06-22&date_to=2026-06-22')
+        ->assertOk()
+        ->assertJsonPath('data.summary.present', 0)
+        ->assertJsonPath('data.summary.official_duty', 1)
+        ->assertJsonPath('data.summary.partial_absence', 1)
+        ->assertJsonPath('data.attendances.0.presence_summary.is_partial_absence', true);
+});
+
+it('rejects checkout scans after partial-day absence is approved and keeps a scan trail', function (): void {
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-06-22 08:05', config('app.timezone')));
+    [$memberUser] = requestMember('220350017');
+    $admin = requestUser('super_admin', 'partial-scan-admin');
+    $device = requestAttendanceDevice($admin, 'partial-scan');
+    $this->actingAs($memberUser)->postJson('/api/v1/attendance/scans', [
+        'token' => app(QrTokenService::class)->rotate($device, true)['token'],
+    ])->assertOk();
+
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-06-22 09:10', config('app.timezone')));
+    $publicId = $this->actingAs($memberUser)->postJson('/api/v1/attendance-requests', [
+        'type' => 'permission',
+        'date_from' => '2026-06-22',
+        'date_to' => '2026-06-22',
+        'proposed_check_out_at' => '2026-06-22T09:10:00+08:00',
+        'reason' => 'Ada keperluan mendesak setelah hadir.',
+    ])->assertCreated()->json('data.id');
+    $this->actingAs($admin)->postJson("/api/v1/admin/attendance-requests/{$publicId}/approve")->assertOk();
+
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-06-22 16:05', config('app.timezone')));
+    $this->actingAs($memberUser)->postJson('/api/v1/attendance/scans', [
+        'token' => app(QrTokenService::class)->rotate($device, true)['token'],
+    ])->assertStatus(422)->assertJsonValidationErrors('token');
+
+    expect(AttendanceScan::query()->where('accepted', false)->where('reason', 'approved_request_exists')->count())->toBe(1);
+});
+
 function requestSchedule(int $weekday): void
 {
     AttendanceWeeklySchedule::query()->create([
@@ -126,4 +290,18 @@ function requestMember(string $number): array
     $member = Member::query()->create(['user_id' => $user->id, 'member_number' => $number, 'position' => 'Anggota']);
 
     return [$user, $member];
+}
+
+function requestAttendanceDevice(User $admin, string $code): AttendanceDevice
+{
+    return AttendanceDevice::query()->create([
+        'code' => 'GAWAI-'.$code,
+        'name' => 'Gawai '.$code,
+        'credential_hash' => hash('sha256', 'credential-'.$code),
+        'credential_rotated_at' => now(),
+        'credential_expires_at' => now()->addDays(400),
+        'status' => AttendanceDeviceStatus::Active,
+        'activated_at' => now(),
+        'activated_by' => $admin->id,
+    ]);
 }

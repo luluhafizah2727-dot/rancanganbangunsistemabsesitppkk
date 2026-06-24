@@ -6,6 +6,7 @@ use App\Enums\AttendanceStatus;
 use App\Enums\UserStatus;
 use App\Models\Attendance;
 use App\Models\AttendanceDay;
+use App\Models\AttendanceDevice;
 use App\Models\AttendanceException;
 use App\Models\AttendanceWeeklySchedule;
 use App\Models\Member;
@@ -146,6 +147,19 @@ class DailyAttendanceService
             return null;
         }
 
+        return $this->syncDateIfToday($today);
+    }
+
+    public function syncDateIfToday(CarbonInterface|string $value): ?AttendanceDay
+    {
+        $date = $value instanceof CarbonInterface
+            ? CarbonImmutable::instance($value)->setTimezone(config('app.timezone'))->startOfDay()
+            : CarbonImmutable::parse($value, config('app.timezone'))->startOfDay();
+        $today = CarbonImmutable::now(config('app.timezone'))->startOfDay();
+        if (! $date->isSameDay($today)) {
+            return null;
+        }
+
         $attributes = $this->attributesFor($today);
         $day = AttendanceDay::query()->whereDate('attendance_date', $today->toDateString())->first();
         if ($day) {
@@ -155,9 +169,26 @@ class DailyAttendanceService
         }
 
         $this->syncMembers($day);
+        app(AttendanceRequestService::class)->applyApprovedForDay($day);
         $this->refreshStatuses($day);
 
         return $day->fresh();
+    }
+
+    public function deviceAllowedForDay(AttendanceDevice $device, AttendanceDay $day): bool
+    {
+        if ($day->source !== 'exception') {
+            return true;
+        }
+
+        $snapshot = $day->schedule_snapshot ?? [];
+        if (($snapshot['device_scope'] ?? 'all') !== 'selected') {
+            return true;
+        }
+
+        $allowedIds = array_map('intval', $snapshot['attendance_device_ids'] ?? []);
+
+        return in_array($device->id, $allowedIds, true);
     }
 
     private function syncMembers(AttendanceDay $day): void
@@ -195,9 +226,10 @@ class DailyAttendanceService
 
     private function attributesFor(CarbonImmutable $date): array
     {
-        $exception = AttendanceException::query()->whereDate('attendance_date', $date->toDateString())->first();
+        $exception = AttendanceException::query()->with('devices')->whereDate('attendance_date', $date->toDateString())->first();
         $rule = $exception ?? AttendanceWeeklySchedule::query()->where('weekday', $date->dayOfWeekIso)->first();
         $working = (bool) ($rule?->is_working_day ?? false);
+        $exceptionDevices = $exception?->devices ?? collect();
         $snapshot = [
             'source_id' => $rule?->public_id,
             'weekday' => $date->dayOfWeekIso,
@@ -207,6 +239,13 @@ class DailyAttendanceService
             'check_out_time' => $rule?->check_out_time,
             'check_out_before_minutes' => (int) ($rule?->check_out_before_minutes ?? 30),
             'check_out_after_minutes' => (int) ($rule?->check_out_after_minutes ?? 30),
+            'device_scope' => $exception && $working && $exceptionDevices->isNotEmpty() ? 'selected' : 'all',
+            'attendance_device_ids' => $exception && $working
+                ? $exceptionDevices->pluck('id')->map(fn ($id) => (int) $id)->values()->all()
+                : [],
+            'attendance_device_public_ids' => $exception && $working
+                ? $exceptionDevices->pluck('public_id')->values()->all()
+                : [],
         ];
 
         $attributes = [
@@ -216,6 +255,12 @@ class DailyAttendanceService
             'status' => $working ? 'scheduled' : 'holiday',
             'note' => $exception?->note,
             'schedule_snapshot' => $snapshot,
+            'check_in_target_at' => null,
+            'check_in_opens_at' => null,
+            'check_in_closes_at' => null,
+            'check_out_target_at' => null,
+            'check_out_opens_at' => null,
+            'check_out_closes_at' => null,
         ];
 
         if (! $working) {

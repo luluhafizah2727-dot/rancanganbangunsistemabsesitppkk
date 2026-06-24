@@ -8,11 +8,13 @@ import { Button, ConfirmDialog, EmptyState, FormErrorSummary, Modal, PageHeader,
 import { api, apiErrorMessage, jsonBody } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 import { formatDate } from '../../lib/format'
-import type { AttendanceException, AttendanceSettings, WeeklySchedule } from '../../types'
+import type { AttendanceDevice, AttendanceException, AttendanceSettings, WeeklySchedule } from '../../types'
 
 const dayNames = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
 type ScheduleForm = Omit<WeeklySchedule, 'id' | 'weekday'>
 const defaultTimes: ScheduleForm = { is_working_day: true, check_in_time: '08:00', check_in_before_minutes: 30, check_in_after_minutes: 30, check_out_time: '16:00', check_out_before_minutes: 30, check_out_after_minutes: 30 }
+type ExceptionForm = ScheduleForm & { attendance_date: string; note: string; attendance_device_ids: string[] }
+const defaultExceptionForm = (): ExceptionForm => ({ ...defaultTimes, attendance_date: dateInMakassar(new Date()), note: '', attendance_device_ids: [] })
 
 export function SettingsPage() {
   const { user } = useAuth()
@@ -67,9 +69,13 @@ function WeeklySettings() {
 function ExceptionSettings() {
   const queryClient = useQueryClient()
   const settings = useSettings()
+  const devices = useQuery({ queryKey: ['attendance-devices'], queryFn: () => api<AttendanceDevice[]>('/api/v1/attendance-devices') })
   const [editing, setEditing] = useState<AttendanceException | 'new' | null>(null)
   const [removing, setRemoving] = useState<AttendanceException | null>(null)
-  const [form, setForm] = useState({ ...defaultTimes, attendance_date: dateInMakassar(new Date()), note: '' })
+  const [form, setForm] = useState<ExceptionForm>(() => defaultExceptionForm())
+  const selectableDevices = (devices.data ?? []).filter((device) => device.status !== 'revoked')
+  const missingDeviceSelection = form.is_working_day && form.attendance_device_ids.length === 0
+  const updateForm = (value: ExceptionForm) => setForm(value.is_working_day ? value : { ...value, attendance_device_ids: [] })
   const save = useMutation({
     mutationFn: () => api(editing === 'new' ? '/api/v1/attendance-exceptions' : `/api/v1/attendance-exceptions/${(editing as AttendanceException).id}`, { method: editing === 'new' ? 'POST' : 'PUT', ...jsonBody(form) }),
     onSuccess: () => { toast.success('Pengecualian tanggal berhasil disimpan.'); setEditing(null); queryClient.invalidateQueries({ queryKey: ['attendance-settings'] }) },
@@ -80,18 +86,33 @@ function ExceptionSettings() {
     onSuccess: () => { toast.success('Pengecualian tanggal dihapus.'); setRemoving(null); queryClient.invalidateQueries({ queryKey: ['attendance-settings'] }) },
     onError: showError,
   })
-  const openCreate = () => { setForm({ ...defaultTimes, attendance_date: dateInMakassar(new Date()), note: '' }); setEditing('new') }
-  const openEdit = (item: AttendanceException) => { setForm({ ...item, check_in_time: shortTime(item.check_in_time), check_out_time: shortTime(item.check_out_time) }); setEditing(item) }
+  const openCreate = () => { setForm(defaultExceptionForm()); setEditing('new') }
+  const openEdit = (item: AttendanceException) => { setForm({ ...item, check_in_time: shortTime(item.check_in_time), check_out_time: shortTime(item.check_out_time), attendance_device_ids: item.device_ids ?? [] }); setEditing(item) }
 
   return (
     <section className="panel schedule-panel">
       <header className="panel__header"><div><h2>Pengecualian tanggal</h2><p>Atur hari libur atau jadwal khusus.</p></div><Button icon={<Plus size={17} />} onClick={openCreate}>Tambah tanggal</Button></header>
       <div className="exception-list">
-        {settings.data?.exceptions.length ? settings.data.exceptions.map((item) => <article key={item.id}><span className="resource-icon"><CalendarOff size={20} /></span><div><strong>{formatDate(`${item.attendance_date}T00:00:00+08:00`, 'EEEE, dd MMMM yyyy')}</strong><p>{item.note}</p></div><StatusBadge tone={item.is_working_day ? 'info' : 'warning'}>{item.is_working_day ? `${shortTime(item.check_in_time)}–${shortTime(item.check_out_time)}` : 'Libur'}</StatusBadge><div className="row-actions"><button className="icon-button" title="Edit" onClick={() => openEdit(item)}><Pencil size={16} /></button><button className="icon-button icon-button--danger" title="Hapus" onClick={() => setRemoving(item)}><Trash2 size={16} /></button></div></article>) : <EmptyState title="Belum ada pengecualian" description="Jadwal mingguan digunakan untuk semua tanggal." />}
+        {settings.data?.exceptions.length ? settings.data.exceptions.map((item) => <article key={item.id}><span className="resource-icon"><CalendarOff size={20} /></span><div><strong>{formatDate(`${item.attendance_date}T00:00:00+08:00`, 'EEEE, dd MMMM yyyy')}</strong><p>{item.note}</p>{item.is_working_day ? <p>Gawai: {deviceScopeLabel(item)}</p> : null}</div><StatusBadge tone={item.is_working_day ? 'info' : 'warning'}>{item.is_working_day ? `${shortTime(item.check_in_time)}–${shortTime(item.check_out_time)}` : 'Libur'}</StatusBadge><div className="row-actions"><button className="icon-button" title="Edit" onClick={() => openEdit(item)}><Pencil size={16} /></button><button className="icon-button icon-button--danger" title="Hapus" onClick={() => setRemoving(item)}><Trash2 size={16} /></button></div></article>) : <EmptyState title="Belum ada pengecualian" description="Jadwal mingguan digunakan untuk semua tanggal." />}
       </div>
-      {editing ? <Modal title={editing === 'new' ? 'Tambah pengecualian' : 'Edit pengecualian'} onClose={() => setEditing(null)}><form onSubmit={(event) => { event.preventDefault(); save.mutate() }}><div className="form-grid"><label className="field field--full"><span>Tanggal</span><input className="input" type="date" value={form.attendance_date} onChange={(event) => setForm({ ...form, attendance_date: event.target.value })} required /></label><label className="field field--full"><span>Catatan</span><input className="input" value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} placeholder="Contoh: Libur nasional" required /></label></div><ScheduleFields form={form} onChange={setForm} /><div className="form-actions"><Button type="button" variant="secondary" onClick={() => setEditing(null)}>Batal</Button><Button type="submit" disabled={save.isPending}>Simpan</Button></div></form></Modal> : null}
+      {editing ? <Modal title={editing === 'new' ? 'Tambah pengecualian' : 'Edit pengecualian'} onClose={() => setEditing(null)}><form onSubmit={(event) => { event.preventDefault(); if (!missingDeviceSelection) save.mutate() }}><div className="form-grid"><label className="field field--full"><span>Tanggal</span><input className="input" type="date" value={form.attendance_date} onChange={(event) => setForm({ ...form, attendance_date: event.target.value })} required /></label><label className="field field--full"><span>Catatan</span><input className="input" value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} placeholder="Contoh: Rakor kader di aula" required /></label></div><ScheduleFields form={form} onChange={updateForm} />{form.is_working_day ? <ExceptionDeviceSelector devices={selectableDevices} selectedIds={form.attendance_device_ids} loading={devices.isLoading} onChange={(attendance_device_ids) => setForm({ ...form, attendance_device_ids })} /> : null}<FormErrorSummary error={save.error} /><div className="form-actions"><Button type="button" variant="secondary" onClick={() => setEditing(null)}>Batal</Button><Button type="submit" disabled={save.isPending || missingDeviceSelection}>{save.isPending ? 'Menyimpan...' : 'Simpan'}</Button></div></form></Modal> : null}
       {removing ? <ConfirmDialog title="Hapus pengecualian?" description={`Tanggal ${formatDate(`${removing.attendance_date}T00:00:00+08:00`, 'dd MMMM yyyy')} akan kembali mengikuti jadwal mingguan.`} confirmLabel="Hapus" confirmVariant="danger" disabled={remove.isPending} onCancel={() => setRemoving(null)} onConfirm={() => remove.mutate()} /> : null}
     </section>
+  )
+}
+
+function ExceptionDeviceSelector({ devices, selectedIds, loading, onChange }: { devices: AttendanceDevice[]; selectedIds: string[]; loading: boolean; onChange: (ids: string[]) => void }) {
+  const toggle = (id: string) => onChange(selectedIds.includes(id) ? selectedIds.filter((selectedId) => selectedId !== id) : [...selectedIds, id])
+
+  return (
+    <div className="field field--full exception-device-field">
+      <span>Gawai yang diizinkan</span>
+      <small>Pilih layar/gawai yang memang dipakai untuk jadwal khusus atau agenda hari ini.</small>
+      {loading ? <p className="muted">Memuat daftar gawai...</p> : null}
+      {!loading && devices.length === 0 ? <p className="field-error">Belum ada gawai yang bisa dipilih. Tambahkan gawai terlebih dahulu dari menu Gawai.</p> : null}
+      {!loading && devices.length > 0 ? <div className="device-check-list">{devices.map((device) => <label key={device.id} className="device-check"><input type="checkbox" checked={selectedIds.includes(device.id)} onChange={() => toggle(device.id)} /><span><strong>{device.name}</strong><small>{device.code}{device.location ? ` · ${device.location}` : ''} · {deviceStatusLabel(device.status)}</small></span></label>)}</div> : null}
+      {!loading && devices.length > 0 && selectedIds.length === 0 ? <p className="field-error">Pilih minimal satu gawai untuk jadwal khusus.</p> : null}
+    </div>
   )
 }
 
@@ -132,3 +153,10 @@ function useSettings() {
 function shortTime(value: string | null) { return value ? value.slice(0, 5) : '-' }
 function dateInMakassar(date: Date) { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date) }
 function showError(error: unknown) { toast.error(apiErrorMessage(error, 'Perubahan gagal disimpan.')) }
+function deviceScopeLabel(item: AttendanceException) {
+  if (!item.device_ids?.length) return 'Semua gawai aktif (data lama)'
+  return item.devices?.length ? item.devices.map((device) => device.name).join(', ') : `${item.device_ids.length} gawai`
+}
+function deviceStatusLabel(status: AttendanceDevice['status']) {
+  return status === 'active' ? 'aktif' : status === 'pending' ? 'menunggu aktivasi' : status === 'inactive' ? 'nonaktif' : 'dicabut'
+}

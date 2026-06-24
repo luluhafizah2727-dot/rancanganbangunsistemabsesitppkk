@@ -44,7 +44,7 @@ class ReportController extends Controller
         $sheet->setTitle('Absensi Harian');
         $sheet->fromArray([
             'No', 'Tanggal', 'Nomor Anggota', 'Nama', 'Jabatan', 'Status',
-            'Check-in', 'Ketepatan Masuk', 'Check-out', 'Ketepatan Pulang', 'Catatan',
+            'Jejak Hadir', 'Check-in', 'Ketepatan Masuk', 'Check-out', 'Ketepatan Pulang', 'Catatan',
         ], null, 'A1');
 
         $rows = collect($data['attendances'])->map(fn (array $attendance, int $index) => [
@@ -54,6 +54,7 @@ class ReportController extends Controller
             $attendance['member']['user']['name'],
             $attendance['member']['position'],
             $this->statusLabel($attendance['status']),
+            $attendance['presence_summary']['label'] ?? '-',
             $attendance['check_in_at'] ? CarbonImmutable::parse($attendance['check_in_at'])->timezone(config('app.timezone'))->format('H:i:s') : '-',
             $attendance['check_in_status'] === 'late' ? 'Terlambat' : ($attendance['check_in_status'] ? 'Tepat waktu' : '-'),
             $attendance['check_out_at'] ? CarbonImmutable::parse($attendance['check_out_at'])->timezone(config('app.timezone'))->format('H:i:s') : '-',
@@ -61,7 +62,7 @@ class ReportController extends Controller
             $attendance['note'] ?? '-',
         ])->all();
         $sheet->fromArray($rows, null, 'A2');
-        foreach (range('A', 'K') as $column) {
+        foreach (range('A', 'L') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
         $sheet->freezePane('A2');
@@ -105,6 +106,7 @@ class ReportController extends Controller
                 'official_duty' => $attendances->where('status', 'official_duty')->count(),
                 'absent' => $attendances->where('status', 'absent')->count(),
                 'pending' => $attendances->where('status', 'pending')->count(),
+                'partial_absence' => $attendances->filter(fn (array $attendance) => (bool) ($attendance['presence_summary']['is_partial_absence'] ?? false))->count(),
             ],
             'generated_at' => now()->toIso8601String(),
         ];

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\AttendanceDeviceStatus;
+use App\Enums\AttendanceStatus;
 use App\Events\QrRotated;
 use App\Models\Attendance;
 use App\Models\AttendanceDay;
@@ -126,6 +127,11 @@ class QrTokenService
         }
 
         $day = $this->days->forDate();
+        if (! $this->days->deviceAllowedForDay($device, $day)) {
+            Cache::forget($this->currentKey($device));
+
+            return null;
+        }
 
         return $this->days->phaseAt($day) ? $day : null;
     }
@@ -152,6 +158,12 @@ class QrTokenService
             'official_duty' => (int) ($counts['official_duty'] ?? 0),
             'absent' => (int) ($counts['absent'] ?? 0),
             'pending' => (int) ($counts['pending'] ?? 0),
+            'partial_absence' => Attendance::query()
+                ->where('attendance_day_id', $day->id)
+                ->whereIn('status', [AttendanceStatus::Permission->value, AttendanceStatus::Sick->value, AttendanceStatus::OfficialDuty->value])
+                ->whereNotNull('check_in_at')
+                ->whereNotNull('check_out_at')
+                ->count(),
             'checked_out' => Attendance::query()->where('attendance_day_id', $day->id)->whereNotNull('check_out_at')->count(),
         ];
     }

@@ -174,7 +174,9 @@ class AttendanceDeviceController extends Controller
             'registered' => true,
             'device' => Present::device($device),
             'qr' => $qr,
-            'qr_unavailable_reason' => $qr ? null : $this->qrUnavailableReason($day),
+            'qr_unavailable_reason' => $qr ? null : ($days->deviceAllowedForDay($device, $day)
+                ? $this->qrUnavailableReason($day)
+                : 'Gawai ini tidak diizinkan untuk jadwal khusus hari ini.'),
             'attendance_day' => Present::day($day),
             'current_phase' => $phase,
             'next_working_day' => $nextDay ? Present::day($nextDay) : null,
@@ -184,10 +186,17 @@ class AttendanceDeviceController extends Controller
         ]);
     }
 
-    public function currentQr(Request $request, QrTokenService $tokens): JsonResponse
+    public function currentQr(Request $request, QrTokenService $tokens, DailyAttendanceService $days): JsonResponse
     {
-        $current = $tokens->currentOrRotate($request->attributes->get('attendance_device'));
+        /** @var AttendanceDevice $device */
+        $device = $request->attributes->get('attendance_device');
+        $current = $tokens->currentOrRotate($device);
         if (! $current) {
+            $day = $tokens->dayForDisplay();
+            if (! $days->deviceAllowedForDay($device, $day)) {
+                return ApiResponse::error('Gawai ini tidak diizinkan untuk jadwal khusus hari ini.', 'attendance_device_not_allowed', 403);
+            }
+
             return ApiResponse::error('Belum berada dalam waktu check-in atau check-out.', 'attendance_window_closed', 404);
         }
 

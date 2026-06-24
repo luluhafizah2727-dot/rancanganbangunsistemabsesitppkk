@@ -156,6 +156,16 @@ class AttendanceRequestController extends Controller
             throw ValidationException::withMessages(['date_from' => 'Tanggal harus berada dalam 30 hari terakhir hingga 90 hari ke depan, maksimal 31 hari.']);
         }
         if (! $type->isTimeCorrection()) {
+            if ($type->supportsPartialAbsence() && ! empty($data['proposed_check_out_at'])) {
+                if (! $from->equalTo($to)) {
+                    throw ValidationException::withMessages(['date_to' => 'Izin/sakit/dinas sebagian hari hanya dapat diajukan untuk satu tanggal.']);
+                }
+                $partialStart = CarbonImmutable::parse($data['proposed_check_out_at'])->setTimezone(config('app.timezone'));
+                if ($partialStart->toDateString() !== $from->toDateString()) {
+                    throw ValidationException::withMessages(['proposed_check_out_at' => 'Waktu mulai izin/sakit/dinas harus berada pada tanggal permohonan.']);
+                }
+            }
+
             return;
         }
         if (! $from->equalTo($to) || $from->isFuture()) {

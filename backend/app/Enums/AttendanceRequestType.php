@@ -18,6 +18,11 @@ enum AttendanceRequestType: string
         return in_array($this, [self::MissedCheckIn, self::MissedCheckOut, self::TimeCorrection], true);
     }
 
+    public function supportsPartialAbsence(): bool
+    {
+        return in_array($this, [self::Permission, self::Sick, self::OfficialDuty], true);
+    }
+
     public function attendanceStatus(): AttendanceStatus
     {
         return match ($this) {

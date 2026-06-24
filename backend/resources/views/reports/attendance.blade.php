@@ -26,10 +26,11 @@
         <span>Cuti: <strong>{{ $summary['leave'] }}</strong></span>
         <span>Sakit: <strong>{{ $summary['sick'] }}</strong></span>
         <span>Dinas: <strong>{{ $summary['official_duty'] }}</strong></span>
+        <span>Sempat hadir: <strong>{{ $summary['partial_absence'] ?? 0 }}</strong></span>
         <span>Alpa: <strong>{{ $summary['absent'] }}</strong></span>
     </div>
     <table>
-        <thead><tr><th>No</th><th>Tanggal</th><th>Nomor</th><th>Nama</th><th>Jabatan</th><th>Status</th><th>Masuk</th><th>Pulang</th><th>Catatan</th></tr></thead>
+        <thead><tr><th>No</th><th>Tanggal</th><th>Nomor</th><th>Nama</th><th>Jabatan</th><th>Status</th><th>Jejak hadir</th><th>Masuk</th><th>Pulang</th><th>Catatan</th></tr></thead>
         <tbody>
         @foreach ($attendances as $index => $attendance)
             <tr>
@@ -39,6 +40,7 @@
                 <td>{{ $attendance['member']['user']['name'] }}</td>
                 <td>{{ $attendance['member']['position'] ?: '-' }}</td>
                 <td>{{ ['present' => 'Hadir', 'permission' => 'Izin', 'leave' => 'Cuti', 'sick' => 'Sakit', 'official_duty' => 'Dinas', 'absent' => 'Alpa', 'pending' => 'Belum hadir'][$attendance['status']] }}</td>
+                <td>{{ $attendance['presence_summary']['label'] ?? '-' }}</td>
                 <td>{{ $attendance['check_in_at'] ? \Carbon\Carbon::parse($attendance['check_in_at'])->timezone(config('app.timezone'))->format('H:i:s') : '-' }}</td>
                 <td>{{ $attendance['check_out_at'] ? \Carbon\Carbon::parse($attendance['check_out_at'])->timezone(config('app.timezone'))->format('H:i:s') : '-' }}</td>
                 <td>{{ $attendance['note'] ?: '-' }}</td>

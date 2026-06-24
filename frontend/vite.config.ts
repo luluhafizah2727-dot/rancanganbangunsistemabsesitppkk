@@ -17,6 +17,10 @@ function list(value: string | undefined) {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, envDir, '')
+  const reverbHost = env.VITE_REVERB_HOST || env.REVERB_HOST || '127.0.0.1'
+  const reverbPort = env.VITE_REVERB_PORT || env.REVERB_PORT || '8080'
+  const reverbScheme = env.VITE_REVERB_SCHEME || env.REVERB_SCHEME || 'http'
+  const reverbWsScheme = reverbScheme === 'https' ? 'wss' : 'ws'
 
   return {
     envDir,
@@ -44,7 +48,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
         },
         '/app': {
-          target: 'ws://127.0.0.1:8080',
+          target: `${reverbWsScheme}://${reverbHost}:${reverbPort}`,
           changeOrigin: true,
           ws: true,
         },
