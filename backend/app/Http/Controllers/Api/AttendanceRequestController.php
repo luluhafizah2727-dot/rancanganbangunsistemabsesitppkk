@@ -6,6 +6,8 @@ use App\Enums\AttendanceRequestStatus;
 use App\Enums\AttendanceRequestType;
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceRequest;
+use App\Services\AttendanceRequestNotificationService;
+use App\Services\AttendanceRequestReviewerService;
 use App\Services\AttendanceRequestService;
 use App\Services\AuditLogger;
 use App\Services\DailyAttendanceService;
@@ -59,7 +61,7 @@ class AttendanceRequestController extends Controller
         return ApiResponse::success(Present::attendanceRequest($attendanceRequest->load('member.user', 'reviewer')));
     }
 
-    public function store(Request $request, DailyAttendanceService $days, AuditLogger $audit): JsonResponse
+    public function store(Request $request, DailyAttendanceService $days, AuditLogger $audit, AttendanceRequestNotificationService $notifications): JsonResponse
     {
         $member = $request->user()->member;
         abort_unless($member, 403, 'Profil anggota tidak ditemukan.');
@@ -98,6 +100,7 @@ class AttendanceRequestController extends Controller
             ]);
         });
         $audit->log('attendance_request.submitted', $item, ['type' => $item->type->value, 'date_from' => $item->date_from->toDateString(), 'date_to' => $item->date_to->toDateString()]);
+        $notifications->notifySubmitted($item);
 
         return ApiResponse::success(Present::attendanceRequest($item->load('member.user')), status: 201);
     }
@@ -112,8 +115,16 @@ class AttendanceRequestController extends Controller
         return ApiResponse::success(Present::attendanceRequest($attendanceRequest->fresh(['member.user'])));
     }
 
-    public function approve(Request $request, AttendanceRequest $attendanceRequest, AttendanceRequestService $service, AuditLogger $audit): JsonResponse
+    public function approve(
+        Request $request,
+        AttendanceRequest $attendanceRequest,
+        AttendanceRequestService $service,
+        AttendanceRequestReviewerService $reviewers,
+        AttendanceRequestNotificationService $notifications,
+        AuditLogger $audit,
+    ): JsonResponse
     {
+        abort_unless($reviewers->canReview($request->user()), 403, 'Anda tidak berwenang meninjau permohonan.');
         $data = $request->validate([
             'review_note' => ['nullable', 'string', 'max:1000'],
             'approved_check_in_at' => ['nullable', 'date'],
@@ -122,23 +133,27 @@ class AttendanceRequestController extends Controller
         $before = Present::attendanceRequest($attendanceRequest->load('member.user', 'reviewer'));
         $approved = $service->approve($attendanceRequest, $data, $request->user()->id);
         $audit->log('attendance_request.approved', $approved, ['before' => $before, 'after' => Present::attendanceRequest($approved)]);
+        $notifications->notifyReviewed($approved);
 
         return ApiResponse::success(Present::attendanceRequest($approved));
     }
 
-    public function reject(Request $request, AttendanceRequest $attendanceRequest, AuditLogger $audit): JsonResponse
+    public function reject(
+        Request $request,
+        AttendanceRequest $attendanceRequest,
+        AttendanceRequestService $service,
+        AttendanceRequestReviewerService $reviewers,
+        AttendanceRequestNotificationService $notifications,
+        AuditLogger $audit,
+    ): JsonResponse
     {
+        abort_unless($reviewers->canReview($request->user()), 403, 'Anda tidak berwenang meninjau permohonan.');
         $data = $request->validate(['review_note' => ['required', 'string', 'min:5', 'max:1000']]);
-        abort_unless($attendanceRequest->status === AttendanceRequestStatus::Pending, 409, 'Permohonan ini sudah diproses.');
-        $attendanceRequest->update([
-            'status' => AttendanceRequestStatus::Rejected,
-            'reviewed_by' => $request->user()->id,
-            'review_note' => $data['review_note'],
-            'reviewed_at' => now(),
-        ]);
-        $audit->log('attendance_request.rejected', $attendanceRequest, ['reason' => $data['review_note']]);
+        $rejected = $service->reject($attendanceRequest, $data, $request->user()->id);
+        $audit->log('attendance_request.rejected', $rejected, ['reason' => $data['review_note']]);
+        $notifications->notifyReviewed($rejected);
 
-        return ApiResponse::success(Present::attendanceRequest($attendanceRequest->fresh(['member.user', 'reviewer'])));
+        return ApiResponse::success(Present::attendanceRequest($rejected));
     }
 
     public function attachment(Request $request, AttendanceRequest $attendanceRequest): StreamedResponse

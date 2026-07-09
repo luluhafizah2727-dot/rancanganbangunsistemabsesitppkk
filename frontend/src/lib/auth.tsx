@@ -17,6 +17,7 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const publicEntry = ['/login', '/register', '/gawai', '/kiosk'].includes(window.location.pathname)
+    || window.location.pathname.startsWith('/public/attendance-requests/')
   const query = useQuery({
     queryKey: ['auth', 'me'],
     queryFn: () => api<User>('/api/v1/auth/me'),

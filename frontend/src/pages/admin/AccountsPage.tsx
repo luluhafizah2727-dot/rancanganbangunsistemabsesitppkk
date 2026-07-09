@@ -1,20 +1,36 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, KeyRound, Pencil, Plus, Search, UserRoundX } from 'lucide-react'
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Avatar } from '../../components/Avatar'
+import { MyAccountPanel } from '../../components/MyAccountPanel'
 import { Button, ConfirmDialog, EmptyState, FormErrorSummary, Modal, PageHeader, StatusBadge } from '../../components/ui'
 import { api, apiErrorMessage, jsonBody } from '../../lib/api'
+import { useAuth } from '../../lib/auth'
 import { formatDate } from '../../lib/format'
 import type { Account, Role } from '../../types'
 
 const emptyStaffForm = { login_id: '', name: '', email: '', phone: '', role: 'operator' as Extract<Role, 'super_admin' | 'operator'>, password: '', password_confirmation: '' }
+type AccountTab = 'list' | 'me'
 
 export function AccountsPage() {
+  const { user } = useAuth()
+  const [params, setParams] = useSearchParams()
+  const isAdmin = user?.roles.includes('super_admin') ?? false
+  const tab: AccountTab = isAdmin && params.get('tab') !== 'me' ? 'list' : 'me'
+  const setTab = (value: AccountTab) => setParams(value === 'list' ? {} : { tab: 'me' }, { replace: true })
+
   return (
     <>
-      <PageHeader title="Akun" description="Kelola akun staf, role, status, dan reset password." />
-      <AccountList />
+      <PageHeader title="Akun" description={isAdmin ? 'Kelola akun staf dan akun Anda.' : 'Kelola profil dan password akun Anda.'} />
+      {isAdmin ? (
+        <div className="tabs settings-tabs">
+          <button className={tab === 'list' ? 'active' : ''} onClick={() => setTab('list')}>Daftar Akun</button>
+          <button className={tab === 'me' ? 'active' : ''} onClick={() => setTab('me')}>Akun Saya</button>
+        </div>
+      ) : null}
+      {tab === 'list' ? <AccountList /> : <MyAccountPanel />}
     </>
   )
 }

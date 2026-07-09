@@ -60,6 +60,7 @@ class AccountController extends Controller
                 'name' => $data['name'],
                 'email' => $data['email'] ?? null,
                 'phone' => $data['phone'] ?? null,
+                'receive_wa_notifications' => $data['role'] === 'super_admin',
                 'status' => UserStatus::Active,
                 'registration_source' => 'admin',
                 'must_change_password' => true,

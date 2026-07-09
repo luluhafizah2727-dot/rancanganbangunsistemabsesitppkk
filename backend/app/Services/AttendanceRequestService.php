@@ -41,6 +41,23 @@ class AttendanceRequestService
         });
     }
 
+    public function reject(AttendanceRequest $request, array $review, int $reviewerId): AttendanceRequest
+    {
+        return DB::transaction(function () use ($request, $review, $reviewerId): AttendanceRequest {
+            $request = AttendanceRequest::query()->lockForUpdate()->findOrFail($request->id);
+            abort_unless($request->status === AttendanceRequestStatus::Pending, 409, 'Permohonan ini sudah diproses.');
+
+            $request->forceFill([
+                'status' => AttendanceRequestStatus::Rejected,
+                'reviewed_by' => $reviewerId,
+                'review_note' => $review['review_note'] ?? null,
+                'reviewed_at' => now(),
+            ])->save();
+
+            return $request->fresh(['member.user', 'reviewer']);
+        });
+    }
+
     public function applyApprovedForDay(AttendanceDay $day): void
     {
         if (! $day->is_working_day) {

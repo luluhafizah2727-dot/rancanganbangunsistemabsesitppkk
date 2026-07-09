@@ -27,5 +27,7 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('device-activation', fn (Request $request) => Limit::perMinutes(15, 5)->by($request->ip()));
         RateLimiter::for('attendance-scan', fn (Request $request) => Limit::perMinute(30)->by((string) $request->user()?->id));
         RateLimiter::for('attendance-request', fn (Request $request) => Limit::perHour(20)->by((string) $request->user()?->id));
+        RateLimiter::for('public-attendance-request-action', fn (Request $request) => Limit::perMinute(12)->by($request->ip().'|'.$request->route('token')));
+        RateLimiter::for('whatsapp-test', fn (Request $request) => Limit::perMinute(5)->by((string) $request->user()?->id));
     }
 }

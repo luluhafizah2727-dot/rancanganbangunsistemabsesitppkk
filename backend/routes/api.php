@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AttendanceDeviceController;
 use App\Http\Controllers\Api\AttendanceRequestController;
+use App\Http\Controllers\Api\AttendanceRequestReviewerController;
 use App\Http\Controllers\Api\AttendanceSettingsController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
@@ -12,8 +13,10 @@ use App\Http\Controllers\Api\MemberController;
 use App\Http\Controllers\Api\MemberDeviceController;
 use App\Http\Controllers\Api\MemberImportController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\PublicAttendanceRequestActionController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\SecuritySettingController;
+use App\Http\Controllers\Api\WhatsAppNotificationSettingController;
 use App\Support\ApiResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
@@ -34,6 +37,8 @@ Route::prefix('v1')->group(function (): void {
 
     Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
     Route::post('/registrations', [AuthController::class, 'register'])->middleware('throttle:registration');
+    Route::get('/public/attendance-request-actions/{token}', [PublicAttendanceRequestActionController::class, 'show'])->middleware('throttle:public-attendance-request-action');
+    Route::post('/public/attendance-request-actions/{token}/confirm', [PublicAttendanceRequestActionController::class, 'confirm'])->middleware('throttle:public-attendance-request-action');
     Route::post('/attendance-devices/activate', [AttendanceDeviceController::class, 'activate'])->middleware('throttle:device-activation');
     Route::get('/attendance-device/context', [AttendanceDeviceController::class, 'context']);
     Route::get('/attendance-device/qr', [AttendanceDeviceController::class, 'currentQr'])->middleware('attendance.device');
@@ -75,6 +80,8 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/reports/attendance/pdf', [ReportController::class, 'pdf']);
             Route::get('/reports/attendance/xlsx', [ReportController::class, 'xlsx']);
             Route::get('/admin/attendance-requests', [AttendanceRequestController::class, 'adminIndex']);
+            Route::post('/admin/attendance-requests/{attendanceRequest}/approve', [AttendanceRequestController::class, 'approve']);
+            Route::post('/admin/attendance-requests/{attendanceRequest}/reject', [AttendanceRequestController::class, 'reject']);
             Route::get('/security-settings/member-device-binding', [SecuritySettingController::class, 'memberDeviceBinding']);
         });
 
@@ -102,8 +109,11 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/attendances', [AttendanceController::class, 'store']);
             Route::put('/attendances/{attendance}', [AttendanceController::class, 'update']);
             Route::delete('/attendances/{attendance}', [AttendanceController::class, 'destroy']);
-            Route::post('/admin/attendance-requests/{attendanceRequest}/approve', [AttendanceRequestController::class, 'approve']);
-            Route::post('/admin/attendance-requests/{attendanceRequest}/reject', [AttendanceRequestController::class, 'reject']);
+            Route::get('/admin/attendance-request-reviewers', [AttendanceRequestReviewerController::class, 'index']);
+            Route::put('/admin/attendance-request-reviewers', [AttendanceRequestReviewerController::class, 'update']);
+            Route::get('/admin/settings/whatsapp', [WhatsAppNotificationSettingController::class, 'show']);
+            Route::put('/admin/settings/whatsapp', [WhatsAppNotificationSettingController::class, 'update']);
+            Route::post('/admin/settings/whatsapp/test', [WhatsAppNotificationSettingController::class, 'test'])->middleware('throttle:whatsapp-test');
             Route::post('/attendance-devices', [AttendanceDeviceController::class, 'store']);
             Route::put('/attendance-devices/{attendanceDevice}', [AttendanceDeviceController::class, 'update']);
             Route::post('/attendance-devices/{attendanceDevice}/activation-code', [AttendanceDeviceController::class, 'activationCode']);

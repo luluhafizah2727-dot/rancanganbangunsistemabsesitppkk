@@ -23,7 +23,7 @@ import { BrandMark } from './BrandMark'
 
 const navItems = [
   { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/admin/accounts', label: 'Akun', icon: ShieldCheck, adminOnly: true },
+  { to: '/admin/accounts', label: 'Akun', icon: ShieldCheck },
   { to: '/admin/members', label: 'Anggota', icon: Users },
   { to: '/admin/gawai', label: 'Gawai', icon: Monitor },
   { to: '/admin/requests', label: 'Permohonan', icon: FileCheck2 },
@@ -71,9 +71,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="topbar">
           <button className="icon-button topbar__menu" onClick={() => setOpen(true)} aria-label="Buka menu"><Menu size={21} /></button>
           <div className="topbar__date"><CalendarDays size={18} /><span>{formatDate(new Date().toISOString(), 'EEEE, dd MMMM yyyy')}</span></div>
-          {user ? <AccountMenu user={user} accountPath="/admin/settings?tab=account" onLogout={handleLogout} /> : null}
+          {user ? <AccountMenu user={user} accountPath="/admin/accounts?tab=me" onLogout={handleLogout} /> : null}
         </header>
-        {user?.must_change_password ? <div className="password-banner">Password sementara masih digunakan. <Link to="/admin/settings?tab=account">Perbarui di Akun Saya.</Link></div> : null}
+        {user?.must_change_password ? <div className="password-banner">Password sementara masih digunakan. <Link to="/admin/accounts?tab=me">Perbarui di Akun Saya.</Link></div> : null}
         <main className="admin-content">{children}</main>
       </div>
     </div>

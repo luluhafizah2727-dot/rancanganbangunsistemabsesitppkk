@@ -22,6 +22,7 @@ class User extends Authenticatable
         'name',
         'email',
         'phone',
+        'receive_wa_notifications',
         'avatar_path',
         'status',
         'registration_source',
@@ -51,6 +52,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'status' => UserStatus::class,
             'must_change_password' => 'boolean',
+            'receive_wa_notifications' => 'boolean',
             'approved_at' => 'datetime',
             'last_login_at' => 'datetime',
         ];

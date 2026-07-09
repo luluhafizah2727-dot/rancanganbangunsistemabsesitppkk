@@ -8,6 +8,7 @@ use App\Models\AttendanceDay;
 use App\Models\AttendanceDevice;
 use App\Models\AttendanceException;
 use App\Models\AttendanceRequest;
+use App\Models\AttendanceRequestReviewer;
 use App\Models\AttendanceWeeklySchedule;
 use App\Models\Member;
 use App\Models\MemberDevice;
@@ -19,6 +20,11 @@ class Present
     public static function user(User $user): array
     {
         $user->loadMissing('member');
+        $roles = $user->getRoleNames()->values();
+        $isSuperAdmin = $roles->contains('super_admin');
+        $isOperator = $roles->contains('operator');
+        $canReviewAttendanceRequests = $isSuperAdmin
+            || ($isOperator && AttendanceRequestReviewer::query()->where('user_id', $user->id)->exists());
 
         return [
             'id' => $user->public_id,
@@ -28,8 +34,10 @@ class Present
             'phone' => $user->phone,
             'avatar_url' => self::avatarUrl($user),
             'status' => $user->status->value,
-            'roles' => $user->getRoleNames()->values(),
+            'roles' => $roles,
             'must_change_password' => $user->must_change_password,
+            'receive_wa_notifications' => $user->receive_wa_notifications ?? $isSuperAdmin,
+            'can_review_attendance_requests' => $canReviewAttendanceRequests,
             'member' => $user->member ? self::member($user->member, false) : null,
             'last_login_at' => $user->last_login_at?->toIso8601String(),
         ];

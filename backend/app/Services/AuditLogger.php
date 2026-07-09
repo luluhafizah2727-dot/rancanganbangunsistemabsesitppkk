@@ -10,8 +10,13 @@ class AuditLogger
 {
     public function log(string $action, ?Model $subject = null, array $metadata = []): AuditLog
     {
+        return $this->logAs(Auth::id(), $action, $subject, $metadata);
+    }
+
+    public function logAs(?int $actorId, string $action, ?Model $subject = null, array $metadata = []): AuditLog
+    {
         return AuditLog::query()->create([
-            'actor_id' => Auth::id(),
+            'actor_id' => $actorId,
             'action' => $action,
             'subject_type' => $subject?->getMorphClass(),
             'subject_id' => $subject?->getKey(),

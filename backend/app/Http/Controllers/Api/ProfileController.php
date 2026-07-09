@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\AttendanceRequestNotificationService;
 use App\Services\AuditLogger;
 use App\Support\ApiResponse;
 use App\Support\Present;
@@ -11,22 +12,31 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ProfileController extends Controller
 {
-    public function update(Request $request, AuditLogger $audit): JsonResponse
+    public function update(Request $request, AuditLogger $audit, AttendanceRequestNotificationService $notifications): JsonResponse
     {
         $user = $request->user();
         $isMember = $user->hasRole('member');
+        $isStaff = $user->hasAnyRole(['super_admin', 'operator']);
         $data = $request->validate([
             'name' => $isMember ? ['prohibited'] : ['sometimes', 'required', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
             'phone' => ['nullable', 'string', 'max:30'],
+            'receive_wa_notifications' => $isStaff ? ['sometimes', 'boolean'] : ['prohibited'],
             'address' => $isMember ? ['nullable', 'string', 'max:1000'] : ['prohibited'],
         ]);
+        $nextPhone = array_key_exists('phone', $data) ? $data['phone'] : $user->phone;
+        if (($data['receive_wa_notifications'] ?? false) && ! $notifications->normalizePhone($nextPhone)) {
+            throw ValidationException::withMessages([
+                'phone' => 'Isi nomor telepon WhatsApp yang valid sebelum mengaktifkan notifikasi.',
+            ]);
+        }
 
         DB::transaction(function () use ($data, $user, $isMember): void {
-            $user->update(collect($data)->only(['name', 'email', 'phone'])->all());
+            $user->update(collect($data)->only(['name', 'email', 'phone', 'receive_wa_notifications'])->all());
             if ($isMember && $user->member && array_key_exists('address', $data)) {
                 $user->member->update(['address' => $data['address']]);
             }

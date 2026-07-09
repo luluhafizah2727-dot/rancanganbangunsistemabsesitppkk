@@ -16,6 +16,7 @@ const ReportsPage = lazy(() => import('./pages/admin/ReportsPage').then((module)
 const SettingsPage = lazy(() => import('./pages/admin/SettingsPage').then((module) => ({ default: module.SettingsPage })))
 const KioskPage = lazy(() => import('./pages/kiosk/KioskPage').then((module) => ({ default: module.KioskPage })))
 const LoginPage = lazy(() => import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })))
+const PublicAttendanceRequestPage = lazy(() => import('./pages/PublicAttendanceRequestPage').then((module) => ({ default: module.PublicAttendanceRequestPage })))
 const RegisterPage = lazy(() => import('./pages/RegisterPage').then((module) => ({ default: module.RegisterPage })))
 const MemberHistoryPage = lazy(() => import('./pages/member/MemberHistoryPage').then((module) => ({ default: module.MemberHistoryPage })))
 const MemberHomePage = lazy(() => import('./pages/member/MemberHomePage').then((module) => ({ default: module.MemberHomePage })))
@@ -44,6 +45,7 @@ export default function App() {
     <Suspense fallback={<LoadingScreen />}><Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/public/attendance-requests/:token" element={<PublicAttendanceRequestPage />} />
       <Route path="/gawai" element={<KioskPage />} />
       <Route path="/kiosk" element={<Navigate to="/gawai" replace />} />
 

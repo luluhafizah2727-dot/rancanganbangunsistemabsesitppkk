@@ -1,14 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarOff, Clock3, Pencil, Plus, Trash2 } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { CalendarOff, Clock3, MessageCircle, Pencil, Plus, Send, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { AvatarEditor } from '../../components/AvatarEditor'
 import { Button, ConfirmDialog, EmptyState, FormErrorSummary, Modal, PageHeader, StatusBadge } from '../../components/ui'
 import { api, apiErrorMessage, jsonBody } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 import { formatDate } from '../../lib/format'
-import type { AttendanceDevice, AttendanceException, AttendanceSettings, WeeklySchedule } from '../../types'
+import type { AttendanceDevice, AttendanceException, AttendanceSettings, WeeklySchedule, WhatsAppNotificationSettings } from '../../types'
 
 const dayNames = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
 type ScheduleForm = Omit<WeeklySchedule, 'id' | 'weekday'>
@@ -21,21 +20,26 @@ export function SettingsPage() {
   const isAdmin = user?.roles.includes('super_admin') ?? false
   const [params, setParams] = useSearchParams()
   const tabParam = params.get('tab')
-  const tab = tabParam === 'account' ? 'account' : tabParam === 'exceptions' && isAdmin ? 'exceptions' : isAdmin ? 'schedule' : 'account'
-  const setTab = (value: 'schedule' | 'exceptions' | 'account') => {
+  if (!isAdmin || tabParam === 'account') {
+    return <Navigate to="/admin/accounts?tab=me" replace />
+  }
+
+  const tab = tabParam === 'exceptions' ? 'exceptions' : tabParam === 'whatsapp' ? 'whatsapp' : 'schedule'
+  const setTab = (value: 'schedule' | 'exceptions' | 'whatsapp') => {
     setParams(value === 'schedule' ? {} : { tab: value }, { replace: true })
   }
 
   return (
     <>
-      <PageHeader title="Pengaturan" description="Atur jadwal absensi dan akun Anda." />
+      <PageHeader title="Pengaturan" description="Atur jadwal absensi dan pengecualian tanggal." />
       <div className="tabs settings-tabs">
-        {isAdmin ? <><button className={tab === 'schedule' ? 'active' : ''} onClick={() => setTab('schedule')}>Jadwal Mingguan</button><button className={tab === 'exceptions' ? 'active' : ''} onClick={() => setTab('exceptions')}>Pengecualian Tanggal</button></> : null}
-        <button className={tab === 'account' ? 'active' : ''} onClick={() => setTab('account')}>Akun Saya</button>
+        <button className={tab === 'schedule' ? 'active' : ''} onClick={() => setTab('schedule')}>Jadwal Mingguan</button>
+        <button className={tab === 'exceptions' ? 'active' : ''} onClick={() => setTab('exceptions')}>Pengecualian Tanggal</button>
+        <button className={tab === 'whatsapp' ? 'active' : ''} onClick={() => setTab('whatsapp')}>Notifikasi WhatsApp</button>
       </div>
       {tab === 'schedule' ? <WeeklySettings /> : null}
       {tab === 'exceptions' ? <ExceptionSettings /> : null}
-      {tab === 'account' ? <AccountSettings /> : null}
+      {tab === 'whatsapp' ? <WhatsAppSettings /> : null}
     </>
   )
 }
@@ -116,6 +120,126 @@ function ExceptionDeviceSelector({ devices, selectedIds, loading, onChange }: { 
   )
 }
 
+type WhatsAppForm = {
+  enabled: boolean
+  send_url: string
+  status_url: string
+  auth_mode: WhatsAppNotificationSettings['auth_mode']
+  auth_username: string
+  auth_password: string
+  auth_header_name: string
+  auth_header_value: string
+  auth_bearer_token: string
+  footer: string
+  public_base_url: string
+}
+
+const defaultWhatsAppForm: WhatsAppForm = {
+  enabled: false,
+  send_url: '',
+  status_url: '',
+  auth_mode: 'none',
+  auth_username: '',
+  auth_password: '',
+  auth_header_name: '',
+  auth_header_value: '',
+  auth_bearer_token: '',
+  footer: 'Absensi TP PKK Balangan',
+  public_base_url: '',
+}
+
+function WhatsAppSettings() {
+  const queryClient = useQueryClient()
+  const settings = useQuery({ queryKey: ['whatsapp-settings'], queryFn: () => api<WhatsAppNotificationSettings>('/api/v1/admin/settings/whatsapp') })
+  const [form, setForm] = useState<WhatsAppForm>(defaultWhatsAppForm)
+  const [testOpen, setTestOpen] = useState(false)
+  const [testPhone, setTestPhone] = useState('')
+
+  useEffect(() => {
+    if (!settings.data) return
+    setForm({
+      enabled: settings.data.enabled,
+      send_url: '',
+      status_url: '',
+      auth_mode: settings.data.auth_mode,
+      auth_username: settings.data.auth_username ?? '',
+      auth_password: '',
+      auth_header_name: settings.data.auth_header_name ?? '',
+      auth_header_value: '',
+      auth_bearer_token: '',
+      footer: settings.data.footer || 'Absensi TP PKK Balangan',
+      public_base_url: settings.data.public_base_url ?? '',
+    })
+  }, [settings.data])
+
+  const save = useMutation({
+    mutationFn: () => api<WhatsAppNotificationSettings>('/api/v1/admin/settings/whatsapp', { method: 'PUT', ...jsonBody(whatsAppPayload(form)) }),
+    onSuccess: () => {
+      toast.success('Pengaturan WhatsApp berhasil disimpan.')
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-settings'] })
+    },
+    onError: showError,
+  })
+  const test = useMutation({
+    mutationFn: () => api<{ status: string; message: string }>('/api/v1/admin/settings/whatsapp/test', { method: 'POST', ...jsonBody({ phone: testPhone }) }),
+    onSuccess: (result) => {
+      toast.success(result.message)
+      setTestOpen(false)
+      setTestPhone('')
+    },
+    onError: showError,
+  })
+
+  return (
+    <section className="panel whatsapp-panel">
+      <header className="panel__header">
+        <div>
+          <h2>Notifikasi WhatsApp</h2>
+          <p>Konfigurasi gateway DRNet untuk notifikasi pengajuan dan approval publik.</p>
+        </div>
+        <StatusBadge tone={settings.data?.enabled_and_configured ? 'success' : settings.data?.enabled ? 'warning' : 'neutral'}>
+          {settings.data?.enabled_and_configured ? 'Aktif' : settings.data?.enabled ? 'Perlu konfigurasi' : 'Nonaktif'}
+        </StatusBadge>
+      </header>
+      <form className="panel__body whatsapp-form" onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
+        <label className="checkbox field--full"><input type="checkbox" checked={form.enabled} onChange={(event) => setForm({ ...form, enabled: event.target.checked })} /><span>Aktifkan notifikasi WhatsApp</span></label>
+        <div className="form-grid">
+          <label className="field field--full"><span>POST Send URL</span><input className="input" type="url" value={form.send_url} onChange={(event) => setForm({ ...form, send_url: event.target.value })} placeholder={settings.data?.send_url_configured ? 'Endpoint tersimpan. Isi hanya jika ingin mengganti.' : 'https://gateway.drnet.biz.id/ext/secret/wa'} required={form.enabled && !settings.data?.send_url_configured} />{settings.data?.send_url_preview ? <small>Tersimpan: {settings.data.send_url_preview}</small> : <small>Secret URL disimpan terenkripsi di backend dan tidak ditampilkan penuh.</small>}</label>
+          <label className="field field--full"><span>Status URL (opsional)</span><input className="input" type="url" value={form.status_url} onChange={(event) => setForm({ ...form, status_url: event.target.value })} placeholder={settings.data?.status_url_configured ? 'Status endpoint tersimpan. Kosongkan jika tidak diganti.' : 'Otomatis: /status'} />{settings.data?.status_url_preview ? <small>Tersimpan: {settings.data.status_url_preview}</small> : null}</label>
+          <label className="field"><span>URL publik aplikasi</span><input className="input" type="url" value={form.public_base_url} onChange={(event) => setForm({ ...form, public_base_url: event.target.value })} placeholder="https://absensi.example.go.id" required={form.enabled} /><small>Dipakai untuk link approve/reject di WhatsApp. Jangan gunakan localhost.</small></label>
+          <label className="field"><span>Footer pesan</span><input className="input" value={form.footer} onChange={(event) => setForm({ ...form, footer: event.target.value })} /></label>
+          <label className="field"><span>Auth tambahan</span><select className="select" value={form.auth_mode} onChange={(event) => setForm({ ...form, auth_mode: event.target.value as WhatsAppForm['auth_mode'] })}><option value="none">Tidak ada</option><option value="basic">Basic Auth</option><option value="header">Custom Header</option><option value="jwt">Bearer/JWT</option></select></label>
+          {form.auth_mode === 'basic' ? <><label className="field"><span>Basic username</span><input className="input" value={form.auth_username} onChange={(event) => setForm({ ...form, auth_username: event.target.value })} /></label><label className="field"><span>Basic password</span><input className="input" type="password" value={form.auth_password} onChange={(event) => setForm({ ...form, auth_password: event.target.value })} placeholder={settings.data?.auth_password_configured ? 'Password tersimpan. Isi jika diganti.' : ''} /></label></> : null}
+          {form.auth_mode === 'header' ? <><label className="field"><span>Nama header</span><input className="input" value={form.auth_header_name} onChange={(event) => setForm({ ...form, auth_header_name: event.target.value })} placeholder="X-API-Key" /></label><label className="field"><span>Nilai header</span><input className="input" type="password" value={form.auth_header_value} onChange={(event) => setForm({ ...form, auth_header_value: event.target.value })} placeholder={settings.data?.auth_header_value_configured ? 'Token tersimpan. Isi jika diganti.' : ''} /></label></> : null}
+          {form.auth_mode === 'jwt' ? <label className="field field--full"><span>Bearer/JWT token</span><input className="input" type="password" value={form.auth_bearer_token} onChange={(event) => setForm({ ...form, auth_bearer_token: event.target.value })} placeholder={settings.data?.auth_bearer_token_configured ? 'Token tersimpan. Isi jika diganti.' : ''} /></label> : null}
+        </div>
+        <div className="whatsapp-guide"><MessageCircle size={18} /><span>Pesan approval memakai tombol URL approve/reject dan tombol copy kode. Link publik tetap membutuhkan kode unik penerima.</span></div>
+        <FormErrorSummary error={save.error} />
+        <div className="form-actions"><Button type="button" variant="secondary" icon={<Send size={16} />} onClick={() => setTestOpen(true)}>Test kirim</Button><Button type="submit" disabled={save.isPending}>{save.isPending ? 'Menyimpan...' : 'Simpan pengaturan'}</Button></div>
+      </form>
+      {testOpen ? <Modal title="Test kirim WhatsApp" onClose={() => setTestOpen(false)}><form onSubmit={(event) => { event.preventDefault(); test.mutate() }}><label className="field"><span>Nomor tujuan</span><input className="input" value={testPhone} onChange={(event) => setTestPhone(event.target.value)} placeholder="628123456789" required /><small>Gunakan format internasional tanpa tanda plus.</small></label><FormErrorSummary error={test.error} /><div className="form-actions"><Button type="button" variant="secondary" onClick={() => setTestOpen(false)}>Batal</Button><Button type="submit" disabled={test.isPending}>{test.isPending ? 'Mengirim...' : 'Kirim test'}</Button></div></form></Modal> : null}
+    </section>
+  )
+}
+
+function whatsAppPayload(form: WhatsAppForm) {
+  const payload: Record<string, unknown> = {
+    enabled: form.enabled,
+    auth_mode: form.auth_mode,
+    auth_username: form.auth_username || null,
+    auth_header_name: form.auth_header_name || null,
+    footer: form.footer,
+    public_base_url: form.public_base_url || null,
+  }
+  if (form.send_url.trim()) payload.send_url = form.send_url.trim()
+  if (form.status_url.trim()) payload.status_url = form.status_url.trim()
+  if (form.auth_password.trim()) payload.auth_password = form.auth_password
+  if (form.auth_header_value.trim()) payload.auth_header_value = form.auth_header_value
+  if (form.auth_bearer_token.trim()) payload.auth_bearer_token = form.auth_bearer_token
+
+  return payload
+}
+
 function ScheduleFormFields({ form, onChange, onSubmit, onCancel, busy }: { form: ScheduleForm; onChange: (value: ScheduleForm) => void; onSubmit: () => void; onCancel: () => void; busy: boolean }) {
   return <form onSubmit={(event) => { event.preventDefault(); onSubmit() }}><ScheduleFields form={form} onChange={onChange} /><div className="form-actions"><Button type="button" variant="secondary" onClick={onCancel}>Batal</Button><Button type="submit" disabled={busy}>Simpan jadwal</Button></div></form>
 }
@@ -128,22 +252,6 @@ function ToleranceFields<T extends ScheduleForm>({ prefix, form, onChange }: { p
   const before = `${prefix}_before_minutes` as const
   const after = `${prefix}_after_minutes` as const
   return <><label className="field"><span>Toleransi sebelum (menit)</span><input className="input" type="number" min="0" max="720" value={form[before]} onChange={(event) => onChange({ ...form, [before]: Number(event.target.value) } as T)} /></label><label className="field"><span>Toleransi sesudah (menit)</span><input className="input" type="number" min="0" max="720" value={form[after]} onChange={(event) => onChange({ ...form, [after]: Number(event.target.value) } as T)} /></label></>
-}
-
-function AccountSettings() {
-  const { user, refresh } = useAuth()
-  const [profile, setProfile] = useState({ name: user?.name ?? '', email: user?.email ?? '', phone: user?.phone ?? '' })
-  const [password, setPassword] = useState({ current_password: '', password: '', password_confirmation: '' })
-  const [savingProfile, setSavingProfile] = useState(false)
-  const [savingPassword, setSavingPassword] = useState(false)
-  const [profileError, setProfileError] = useState<unknown>(null)
-  const [passwordError, setPasswordError] = useState<unknown>(null)
-  if (!user) return null
-
-  const saveProfile = async (event: FormEvent) => { event.preventDefault(); setSavingProfile(true); setProfileError(null); try { await api('/api/v1/profile', { method: 'PUT', ...jsonBody(profile) }); await refresh(); toast.success('Profil akun berhasil diperbarui.') } catch (error) { setProfileError(error); showError(error) } finally { setSavingProfile(false) } }
-  const savePassword = async (event: FormEvent) => { event.preventDefault(); setSavingPassword(true); setPasswordError(null); try { await api('/api/v1/auth/password', { method: 'PUT', ...jsonBody(password) }); await refresh(); setPassword({ current_password: '', password: '', password_confirmation: '' }); toast.success('Password berhasil diperbarui.') } catch (error) { setPasswordError(error); showError(error) } finally { setSavingPassword(false) } }
-
-  return <div className="settings-grid"><section className="panel"><header className="panel__header"><h2>Profil akun</h2></header><form className="panel__body account-form" onSubmit={saveProfile}><AvatarEditor user={user} onUpdated={refresh} /><label className="field"><span>ID pengguna</span><input className="input" value={user.login_id} disabled /></label><label className="field"><span>Nama</span><input className="input" value={profile.name} onChange={(event) => setProfile({ ...profile, name: event.target.value })} required /></label><label className="field"><span>Email</span><input className="input" type="email" value={profile.email} onChange={(event) => setProfile({ ...profile, email: event.target.value })} /></label><label className="field"><span>Nomor telepon</span><input className="input" value={profile.phone} onChange={(event) => setProfile({ ...profile, phone: event.target.value })} /></label><FormErrorSummary error={profileError} /><div className="form-actions"><Button type="submit" disabled={savingProfile}>{savingProfile ? 'Menyimpan...' : 'Simpan profil'}</Button></div></form></section><section className="panel"><header className="panel__header"><h2>Ubah password</h2></header><form className="panel__body account-form" onSubmit={savePassword}><label className="field"><span>Password saat ini</span><input className="input" type="password" value={password.current_password} onChange={(event) => setPassword({ ...password, current_password: event.target.value })} required /></label><label className="field"><span>Password baru</span><input className="input" type="password" minLength={8} value={password.password} onChange={(event) => setPassword({ ...password, password: event.target.value })} required /><small>Minimal 8 karakter.</small></label><label className="field"><span>Konfirmasi password</span><input className="input" type="password" value={password.password_confirmation} onChange={(event) => setPassword({ ...password, password_confirmation: event.target.value })} required /></label><FormErrorSummary error={passwordError} /><div className="form-actions"><Button type="submit" disabled={savingPassword}>{savingPassword ? 'Menyimpan...' : 'Simpan password'}</Button></div></form></section></div>
 }
 
 function useSettings() {

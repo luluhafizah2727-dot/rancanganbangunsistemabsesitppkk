@@ -26,6 +26,8 @@ export interface User {
   status: 'pending' | 'active' | 'suspended' | 'rejected'
   roles: Role[]
   must_change_password: boolean
+  receive_wa_notifications: boolean
+  can_review_attendance_requests: boolean
   member: Member | null
   registration_source?: string
   approved_at?: string | null
@@ -227,6 +229,52 @@ export interface AttendanceRequest {
   cancelled_at: string | null
   created_at: string
   attendance_context: AttendanceContext | null
+}
+
+export interface WhatsAppNotificationSettings {
+  enabled: boolean
+  send_url: string | null
+  send_url_configured: boolean
+  send_url_preview: string | null
+  status_url: string | null
+  status_url_configured: boolean
+  status_url_preview: string | null
+  auth_mode: 'none' | 'basic' | 'header' | 'jwt'
+  auth_username: string | null
+  auth_password_configured: boolean
+  auth_header_name: string | null
+  auth_header_value_configured: boolean
+  auth_bearer_token_configured: boolean
+  footer: string
+  public_base_url: string | null
+  configured: boolean
+  enabled_and_configured: boolean
+}
+
+export interface AttendanceRequestReviewerOperator {
+  id: string
+  login_id: string
+  name: string
+  phone: string | null
+  status: 'pending' | 'active' | 'suspended' | 'rejected'
+  receive_wa_notifications: boolean
+  authorized: boolean
+  can_be_authorized: boolean
+}
+
+export interface AttendanceRequestReviewerSettings {
+  can_review: boolean
+  operators: AttendanceRequestReviewerOperator[]
+}
+
+export interface PublicAttendanceRequestAction {
+  token_valid: boolean
+  expires_at: string | null
+  request: AttendanceRequest
+  reviewer_hint: {
+    name: string
+    login_id: string
+  }
 }
 
 export interface AttendanceContext {
